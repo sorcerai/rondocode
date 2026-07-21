@@ -66,6 +66,24 @@ describe('ContextPressureEngine', () => {
     engine.ingest({ sessionId: 'two', cwd: '/work/beta', rawPercent: 20 })
     expect(engine.matchTitle('beta — zsh')?.sessionId).toBe('two')
   })
+
+  it('keeps focus on the foreground session when a background session reports without claiming focus', () => {
+    let now = 1
+    const engine = new ContextPressureEngine({ smoothing: 1, now: () => now++ })
+    engine.ingest({ sessionId: 'foreground', rawPercent: 40, focused: true })
+    expect(engine.activeSessionId).toBe('foreground')
+    engine.ingest({ sessionId: 'background', rawPercent: 80 })
+    expect(engine.activeSessionId).toBe('foreground')
+    expect(engine.get('background')?.focused).toBe(false)
+  })
+
+  it('keeps the active session when several same-repo sessions match a title', () => {
+    let now = 1
+    const engine = new ContextPressureEngine({ smoothing: 1, now: () => now++ })
+    engine.ingest({ sessionId: 'a', cwd: '/work/rondocode', rawPercent: 40, focused: true })
+    engine.ingest({ sessionId: 'b', cwd: '/work/rondocode', rawPercent: 60 })
+    expect(engine.matchTitle('rondocode — zsh')?.sessionId).toBe('a')
+  })
 })
 
 describe('contextMix', () => {

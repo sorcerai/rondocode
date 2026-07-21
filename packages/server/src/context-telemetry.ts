@@ -386,8 +386,16 @@ export class ContextPressureEngine {
       const base = cwd.split(/[\\/]/).at(-1)
       return base !== undefined && base !== '' && needle.includes(base.toLowerCase())
     })
-    matches.sort((a, b) => b.updatedAt - a.updatedAt)
-    return matches[0] === undefined ? undefined : publicState(matches[0])
+    if (matches.length === 0) return undefined
+    // Several sessions can share a cwd basename that appears in the title
+    // (e.g. multiple terminals in the same repo). Keep the already-active one
+    // rather than letting a background session's newer updatedAt steal the
+    // foreground; the foreground is claimed by user input, not telemetry.
+    const activeMatch =
+      this.activeId === undefined ? undefined : matches.find((s) => s.sessionId === this.activeId)
+    const sorted = matches.sort((a, b) => b.updatedAt - a.updatedAt)
+    const chosen = activeMatch ?? sorted[0]
+    return chosen === undefined ? undefined : publicState(chosen)
   }
 }
 

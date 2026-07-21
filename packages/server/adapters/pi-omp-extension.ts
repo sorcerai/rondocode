@@ -93,14 +93,14 @@ const getStatus = async (): Promise<Record<string, unknown> | undefined> => {
   }
 }
 
-const usageBody = (ctx: ExtensionContext): Record<string, unknown> => {
+const usageBody = (ctx: ExtensionContext, claimFocus = false): Record<string, unknown> => {
   const usage = ctx.getContextUsage()
   const body: Record<string, unknown> = {
     sessionId: sessionId(ctx),
     event: 'usage',
     cwd: ctx.cwd,
-    focused: true,
   }
+  if (claimFocus) body['focused'] = true
   if (ctx.model?.id !== undefined) body['model'] = ctx.model.id
   if (usage !== undefined) {
     body['usedTokens'] = usage.tokens
@@ -114,10 +114,15 @@ const usageBody = (ctx: ExtensionContext): Record<string, unknown> => {
 }
 
 export default function rondocodeContext(pi: ExtensionAPI): void {
-  const reportUsage: Handler = async (_event, ctx) => post(usageBody(ctx))
+  // Only a real user interaction claims the foreground. Background lifecycle
+  // events (agent completion, compaction) update pressure without stealing
+  // focus from the terminal the user is actively typing in, so several
+  // terminals in the same repo disambiguate by input recency, not by whichever
+  // agent last emitted telemetry.
+  const reportUsage: Handler = async (_event, ctx) => post(usageBody(ctx, false))
 
   pi.on('session_start', reportUsage)
-  pi.on('input', reportUsage)
+  pi.on('input', async (_event, ctx) => post(usageBody(ctx, true)))
   pi.on('agent_end', reportUsage)
 
   pi.on('session_before_compact', async (_event, ctx) => {

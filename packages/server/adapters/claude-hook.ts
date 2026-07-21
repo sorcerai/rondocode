@@ -50,7 +50,11 @@ const main = async (): Promise<void> => {
     event,
     cwd,
   }
-  if (event !== 'session-end') payload.focused = true
+  // Hooks fire on compaction — background telemetry, NOT a focus signal. Do
+  // not claim focus here: a background terminal compacting must not steal the
+  // foreground. Claude Code's status-line adapter is the interaction signal
+  // that claims focus, so the foreground session is already active when its
+  // own compact hook fires and the release arc still runs for it.
 
   try {
     await postContext(payload, { timeoutMs: 900 })

@@ -251,14 +251,16 @@ folder or session ID to select among registered sessions. If the bridge process
 disconnects, the browser stops the context transport immediately and restarts it
 from retained telemetry only after a successful reconnect.
 
-Selection is best-effort, not deterministic. A session is identified only when
-the frontmost title contains that session's id or its project-folder basename
-(for example `rondocode` for `~/repos/rondocode`). Many agent terminals show a
-task or prompt title instead (e.g. `π: <task>`), which contains neither; the
-service then falls back to the active or most-recently-reported session. The
-global coding-app mute gate is reliable (audio stops when you leave a coding
-app), but among several same-repo terminals the foreground window is not always
-the session that drives the score.
+Focus follows user interaction, not background telemetry. Each harness claims
+the foreground only on its interaction event — `input` for OMP/Pi, the
+status-line render for Claude Code; background lifecycle events (agent
+completion, compaction hooks) update pressure without claiming focus. When
+several same-repo sessions match a window title, `matchTitle` keeps the
+already-active session rather than letting a newer background update steal it.
+The terminal you last interacted with holds the soundtrack until you interact
+with another; the only gap is the moment between switching windows and your
+next keystroke or status-line render. The global coding-app mute gate applies
+throughout.
 
 ## Other harnesses
 
