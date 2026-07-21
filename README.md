@@ -131,6 +131,8 @@ every second.
 
 ### Run it
 
+Requires pnpm — install it once with `corepack enable` (or `npm i -g pnpm`).
+
 ```sh
 pnpm install
 
