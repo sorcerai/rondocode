@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-import { pathToFileURL } from 'node:url'
 import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
 
@@ -37,7 +37,10 @@ const contextUrl =
 const focusUrl =
   process.env['RONDOCODE_FOCUS_URL'] ??
   `${contextUrl.replace(/\/context\/?$/, '')}/context/focus`
-const intervalMs = Math.max(200, Number(process.env['RONDOCODE_FOCUS_INTERVAL_MS'] ?? 700))
+const configuredInterval = Number(process.env['RONDOCODE_FOCUS_INTERVAL_MS'] ?? 700)
+const intervalMs = Number.isFinite(configuredInterval)
+  ? Math.max(200, configuredInterval)
+  : 700
 
 const macForeground = async (): Promise<ForegroundWindow> => {
   const script = `
@@ -52,6 +55,7 @@ const macForeground = async (): Promise<ForegroundWindow> => {
     end tell
   `
   const { stdout } = await execFileAsync('osascript', ['-e', script], {
+    encoding: 'utf8',
     timeout: 1200,
     maxBuffer: 16_384,
   })
@@ -61,6 +65,7 @@ const macForeground = async (): Promise<ForegroundWindow> => {
 
 const linuxForeground = async (): Promise<ForegroundWindow> => {
   const active = await execFileAsync('xdotool', ['getactivewindow'], {
+    encoding: 'utf8',
     timeout: 800,
     maxBuffer: 4096,
   })
@@ -68,10 +73,12 @@ const linuxForeground = async (): Promise<ForegroundWindow> => {
   if (id === '') throw new Error('xdotool returned no active window')
   const [klass, title] = await Promise.all([
     execFileAsync('xdotool', ['getwindowclassname', id], {
+      encoding: 'utf8',
       timeout: 800,
       maxBuffer: 4096,
     }),
     execFileAsync('xdotool', ['getwindowname', id], {
+      encoding: 'utf8',
       timeout: 800,
       maxBuffer: 16_384,
     }),
@@ -94,7 +101,7 @@ const postFocus = async (window: ForegroundWindow): Promise<void> => {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 650)
   try {
-    await fetch(focusUrl, {
+    const response = await fetch(focusUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -104,6 +111,9 @@ const postFocus = async (window: ForegroundWindow): Promise<void> => {
       }),
       signal: controller.signal,
     })
+    if (!response.ok) {
+      throw new Error(`focus endpoint returned ${response.status} ${response.statusText}`)
+    }
   } finally {
     clearTimeout(timer)
   }
