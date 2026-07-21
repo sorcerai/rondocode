@@ -45,6 +45,11 @@ pnpm bridge
 pnpm context:focus
 ```
 
+When this repo's `.mcp.json` has already launched the RondoCode MCP server, skip
+`pnpm bridge`: the MCP stdio process now hosts the same WebSocket bridge,
+`/context` HTTP endpoint, and focus watcher. Do not launch both on port 6070 and
+then act surprised when TCP declines the group project.
+
 Open `http://localhost:6060`. The first click or keypress unlocks browser audio.
 That is a browser autoplay restriction, not an artistic choice.
 
@@ -107,7 +112,9 @@ session-end
 
 `focused: true` selects that session. `focused: false` clears it from the active
 audio slot. The server tracks every reported session but drives one context
-score at a time.
+score at a time. Compaction and release transitions are scoped to their source
+session, so a background harness cannot resolve the foreground soundtrack by
+accident.
 
 ## Claude Code
 
@@ -204,9 +211,10 @@ file in that directory's `extensions/` folder instead.
 
 ## Foreground-window gate
 
-`pnpm bridge` starts the foreground watcher automatically on macOS and Linux.
-`pnpm context:focus` runs the same watcher by itself for debugging. It polls the
-frontmost window and posts a global audible/mute gate. It supports:
+Both `pnpm bridge` and the bundled MCP stdio process start the foreground
+watcher automatically on macOS and Linux. `pnpm context:focus` runs the same
+watcher by itself for debugging. It polls the frontmost window and posts a
+global audible/mute gate. It supports:
 
 - macOS through System Events
 - Linux through `xdotool`
@@ -221,7 +229,9 @@ pnpm context:focus
 
 On macOS, grant the shell or terminal Accessibility permission when prompted.
 The watcher also sends the front-window title; RondoCode uses a matching project
-folder or session ID to select among registered sessions.
+folder or session ID to select among registered sessions. If the bridge process
+disconnects, the browser stops the context transport immediately and restarts it
+from retained telemetry only after a successful reconnect.
 
 ## Other harnesses
 
@@ -244,6 +254,10 @@ curl -s http://127.0.0.1:6070/context \
   -d '{"source":"my-harness","sessionId":"abc","rawPercent":64,"focused":true}'
 ```
 
+The context endpoint intentionally does not expose permissive browser CORS and
+requires `application/json` for writes. Local adapters and `curl` work; random
+web pages do not get to inspect project paths or conduct the soundtrack.
+
 ## Environment
 
 | Variable | Default | Purpose |
@@ -254,7 +268,7 @@ curl -s http://127.0.0.1:6070/context \
 | `RONDOCODE_SOURCE` | auto-detected | Override the Pi/OMP source label |
 | `RONDOCODE_FOCUS_APPS` | common coding apps | Foreground allowlist |
 | `RONDOCODE_FOCUS_INTERVAL_MS` | `700` | Foreground poll interval |
-| `RONDOCODE_FOCUS_WATCHER` | enabled | Set to `0` to disable automatic focus polling in `pnpm bridge` |
+| `RONDOCODE_FOCUS_WATCHER` | enabled | Set to `0` to disable automatic focus polling in bridge/MCP processes |
 
 ## Design constraints
 
