@@ -93,11 +93,13 @@ converter as a library function, ready to back an in-app "import MIDI" action.
 ## Context sonification
 
 The local bridge can turn Claude Code, Pi, OMP, or any normalized context
-percentage into a continuously generated danmaku-style score. One original
-RondoCode program stays on the transport while pressure reveals denser drums,
-arpeggios, counterpoint, and harmonic tension; compaction suspends and resolves
-the arrangement. No prerecorded stems or samples are used. Context mode owns
-the live audio session while active, while preserving the editor buffer.
+percentage into a continuously generated danmaku-style score. Pressure reveals
+dense drums, arpeggios, counterpoint, and harmonic tension; compaction suspends
+and resolves the arrangement. No prerecorded stems or samples are used.
+
+The soundtrack runs in an independent AudioWorklet/Session beside the editor,
+sharing only the browser AudioContext. Live-coding and context audio therefore
+coexist without replacing each other's synths, patterns, or transport.
 
 ```sh
 pnpm dev
