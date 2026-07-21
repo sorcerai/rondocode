@@ -121,6 +121,12 @@ const startBridge = (editor: EditorHandle, contextSession: Session | undefined):
     },
     getState: () => session.getState(),
     subscribeState: (fn) => editor.onState(fn),
+    onDisconnect: () => {
+      // A dead local bridge means no trustworthy focus or pressure signal. Stop
+      // the independent score immediately; browser reconnect + hello will load
+      // and restart it from the server's retained state.
+      if (contextSession?.getState().playing === true) contextSession.transport('stop')
+    },
   })
   client.start()
 }
