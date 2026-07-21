@@ -22,6 +22,10 @@
   "scripts": {
     "dev": "pnpm --filter @rondocode/app dev",
     "bridge": "pnpm --filter @rondocode/server exec tsx src/main.ts",
+    "context": "pnpm --filter @rondocode/server exec tsx src/context-cli.ts",
+    "context:claude-statusline": "pnpm --filter @rondocode/server exec tsx adapters/claude-statusline.ts",
+    "context:claude-hook": "pnpm --filter @rondocode/server exec tsx adapters/claude-hook.ts",
+    "context:focus": "pnpm --filter @rondocode/server exec tsx adapters/focus-watcher.ts",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"
   },

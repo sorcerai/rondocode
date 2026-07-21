@@ -90,6 +90,25 @@ faithful; `--by-register` is the robust fallback for messy transcriptions.
 `midiToRondocode(bytes, opts)` in `packages/app/src/midi/import.ts` is the same
 converter as a library function, ready to back an in-app "import MIDI" action.
 
+## Context sonification
+
+The local bridge can turn Claude Code, Pi, OMP, or any normalized context
+percentage into a continuously generated danmaku-style score. One original
+RondoCode program stays on the transport while pressure reveals denser drums,
+arpeggios, counterpoint, and harmonic tension; compaction suspends and resolves
+the arrangement. No prerecorded stems or samples are used. Context mode owns
+the live audio session while active, while preserving the editor buffer.
+
+```sh
+pnpm dev
+pnpm bridge
+pnpm context -- --source demo --session demo-1 --percent 72 --focused
+```
+
+Claude hooks/status-line setup, the Pi/OMP extension, foreground-window watcher,
+protocol, and pressure zones are documented in
+[docs/context-sonification.md](docs/context-sonification.md).
+
 ## Inspiration
 
 rondocode's pattern model — cycle-based patterns and the terse mini-notation —
