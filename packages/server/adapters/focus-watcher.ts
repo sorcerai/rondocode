@@ -155,7 +155,9 @@ export function startFocusWatcher(): FocusWatcher {
 
   void poll()
   const timer = setInterval(() => void poll(), intervalMs)
-  console.log(
+  // stderr is deliberate: this watcher may run inside the MCP stdio process,
+  // whose stdout belongs exclusively to JSON-RPC framing.
+  console.error(
     `[context-focus] watching foreground apps every ${intervalMs}ms (${allowedApps.join(', ')})`,
   )
 
