@@ -68,6 +68,20 @@ describe('ContextService', () => {
     expect(channels.every((channel) => channel.gain === 0)).toBe(true)
   })
 
+  it('does not auto-select a brand-new session that explicitly reports blur', async () => {
+    const { service, calls } = rig()
+    const state = await service.ingest({
+      sessionId: 's',
+      event: 'focus',
+      rawPercent: 40,
+      focused: false,
+    })
+
+    expect(state?.focused).toBe(false)
+    expect(service.status().active).toBeUndefined()
+    expect(calls).toEqual([])
+  })
+
   it('honors an explicit session blur instead of reviving it by recency', async () => {
     const { service, calls } = rig()
     await service.ingest({ sessionId: 's', rawPercent: 70, focused: true })
