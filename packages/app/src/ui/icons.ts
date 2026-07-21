@@ -26,6 +26,22 @@ const ICONS: Record<string, string> = {
   refresh: '<path d="M3 12a9 9 0 0 1 15-6.4L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.4L3 16"/><path d="M3 21v-5h5"/>',
   // close
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  // chevron down — dropdown affordance (project button)
+  chevron: '<path d="m6 9 6 6 6-6"/>',
+  // external link — "open full docs"
+  external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/>',
+  // rotate counter-clockwise — reset a widget to its default
+  reset: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+  // check — success confirmation
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  // download — export to a file
+  download: '<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/>',
+  // record — filled dot
+  record: '<circle cx="12" cy="12" r="6" fill="currentColor" stroke="none"/>',
+  // dots — overflow "more" menu
+  dots: '<circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
+  // midi — a little keyboard
+  midi: '<rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M8 7v6M12 7v6M16 7v6"/>',
 }
 
 export function icon(name: string): string {

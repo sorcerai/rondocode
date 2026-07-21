@@ -31,6 +31,9 @@
 
   /* the single touch-target height for every interactive control */
   --h-ctrl: 44px;
+
+  /* subtle desaturated film-grain, replaces the old graticule grid (signature) */
+  --noise: url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.1'/%3E%3C/svg%3E");
 }
 
 * {
@@ -68,11 +71,9 @@ body {
   gap: var(--sp-2);
   padding: var(--sp-2) calc(var(--sp-3) + env(safe-area-inset-right)) var(--sp-2) calc(var(--sp-3) + env(safe-area-inset-left));
   padding-top: calc(var(--sp-2) + env(safe-area-inset-top));
-  /* scope graticule: a faint measurement grid over the bezel (signature) */
-  background:
-    repeating-linear-gradient(90deg, var(--c-grid) 0 1px, transparent 1px 34px),
-    repeating-linear-gradient(0deg, var(--c-grid) 0 1px, transparent 1px 34px),
-    var(--c-bar);
+  /* subtle film-grain over the bar (signature) */
+  background: var(--noise), var(--c-bar);
+  background-size: 200px 200px, auto;
   border-bottom: 1px solid var(--c-border);
 }
 
@@ -96,6 +97,129 @@ body {
 /* "+ sample" loader button */
 .sample-btn {
   white-space: nowrap;
+}
+
+/* samples popover: the loaded-samples list anchored under the sample button */
+.samples-pop {
+  position: fixed;
+  z-index: 45; /* above the project sheet backdrop (40) */
+  min-width: 220px;
+  max-width: min(320px, 92vw);
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-2);
+  background: var(--c-raised);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.samples-pop.hidden {
+  display: none;
+}
+.samples-head {
+  font-size: var(--fs-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c-dim);
+  padding: 0 var(--sp-1) var(--sp-1);
+}
+.samples-empty {
+  font-size: var(--fs-ctrl);
+  color: var(--c-dim);
+  padding: var(--sp-2) var(--sp-1);
+}
+.samples-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.samples-rowwrap {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+.samples-row {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-ctrl);
+  color: var(--c-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.samples-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+.samples-tag {
+  margin-left: var(--sp-1);
+  font-size: var(--fs-meta);
+  color: var(--c-dim);
+}
+.samples-dur {
+  flex: none;
+  font-size: var(--fs-meta);
+  color: var(--c-dim);
+  font-variant-numeric: tabular-nums;
+}
+.samples-play,
+.samples-rm {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--h-ctrl);
+  padding: 0;
+  color: var(--c-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.samples-load {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-ctrl);
+  color: var(--c-accent);
+  background: transparent;
+  border: 1px dashed var(--c-border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.samples-load svg,
+.samples-play svg,
+.samples-rm svg {
+  width: 14px;
+  height: 14px;
+}
+@media (hover: hover) {
+  .samples-row:hover {
+    background: var(--c-surface);
+    border-color: var(--c-border);
+  }
+  .samples-play:hover {
+    color: var(--c-accent);
+  }
+  .samples-rm:hover {
+    color: var(--c-error);
+  }
+  .samples-load:hover {
+    background: var(--c-surface);
+  }
 }
 
 /* Master output meter, reimagined as the header's living baseline: a thin
@@ -130,23 +254,14 @@ body {
   .logo {
     display: none;
   }
-  .cps-readout {
-    display: none;
-  }
-  .sample-btn .btn-label,
-  .synthlib-btn .btn-label {
-    display: none;
-  }
-  .synthlib-btn .synthlib-ico {
-    margin: 0;
-  }
   .hdr-controls {
     gap: var(--sp-1);
-    min-width: 0; /* let the cluster itself shrink if ever needed */
+    flex: none; /* controls keep their size; the name absorbs the squeeze */
   }
   .project-btn {
-    flex: 0 1 auto;
-    min-width: 0; /* shrink + ellipsize before the controls do */
+    flex: 1 1 0; /* take only the leftover row width, then ellipsize the name */
+    min-width: 0;
+    max-width: none; /* drop the 42vw cap so it can't push controls off-screen */
   }
 }
 
@@ -388,10 +503,8 @@ body {
   flex: none;
   padding: var(--sp-2) calc(var(--sp-3) + env(safe-area-inset-right)) calc(var(--sp-2) + env(safe-area-inset-bottom))
     calc(var(--sp-3) + env(safe-area-inset-left));
-  background:
-    repeating-linear-gradient(90deg, var(--c-grid) 0 1px, transparent 1px 34px),
-    repeating-linear-gradient(0deg, var(--c-grid) 0 1px, transparent 1px 34px),
-    var(--c-bar);
+  background: var(--noise), var(--c-bar);
+  background-size: 200px 200px, auto;
   border-top: 1px solid var(--c-border);
 }
 
@@ -427,7 +540,7 @@ body {
   align-items: center;
   gap: var(--sp-2);
   min-height: var(--h-ctrl); /* touch target row */
-  margin-top: 4px;
+  margin-top: var(--sp-1);
 }
 
 .mixer-name {
@@ -507,7 +620,7 @@ body {
   padding: 0 var(--sp-3);
   cursor: pointer;
   transition:
-    filter 0.12s ease,
+    box-shadow 0.12s ease,
     border-color 0.12s ease,
     background 0.12s ease,
     transform 0.05s ease;
@@ -521,19 +634,48 @@ body {
  * pointer exists, so touch taps never stick) */
 @media (hover: hover) {
   .btn:hover {
-    filter: brightness(1.18);
+    /* a translucent overlay brightens any button background without a `filter`
+       compositing layer (which flickered neighbours on hover-in/out) */
+    box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.09);
     border-color: var(--c-dim);
   }
 }
 
 .btn:active {
-  filter: brightness(0.86);
+  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.2);
   transform: translateY(1px);
 }
 
 .btn:focus-visible {
   outline: 2px solid var(--c-accent);
   outline-offset: 2px;
+}
+
+/* shared styled tooltip (ui/tooltip.ts) — replaces native title */
+.tooltip {
+  position: fixed;
+  z-index: 60; /* above sheets (40) and popovers (45) */
+  max-width: 260px;
+  padding: 4px 8px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: var(--fs-meta);
+  line-height: 1.3;
+  color: var(--c-text);
+  background: var(--c-raised);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+.tooltip.visible {
+  opacity: 1;
+  transform: none;
 }
 
 /* Run/Update: the primary action. */
@@ -571,12 +713,14 @@ body {
 .stop-btn {
   min-width: var(--h-ctrl);
   padding: 0 var(--sp-3);
-  color: var(--c-dim);
-}
-
-.stop-btn:active {
   color: var(--c-error);
   border-color: var(--c-error-border);
+}
+.stop-btn.hidden {
+  display: none;
+}
+.stop-btn:active {
+  background: var(--c-error-bg);
 }
 
 /* Dirty indicator: doc differs from the last run — a dot on the Run button. */
@@ -596,13 +740,6 @@ body {
   opacity: 1;
 }
 
-.cps-readout {
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: var(--fs-meta);
-  color: var(--c-dim);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
 
 /* --- boot error (audio graph failed to build) --- */
 
@@ -620,18 +757,30 @@ body {
 
 .project-btn {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
   min-height: var(--h-ctrl);
   min-width: 0;
   max-width: 42vw;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-size: var(--fs-ctrl);
   color: var(--c-text);
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: var(--r);
   padding: 0 var(--sp-3);
+}
+.project-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-btn svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
 }
 
 .sheet-backdrop {
@@ -829,7 +978,7 @@ body {
 
 .lib-empty {
   font-size: var(--fs-ctrl);
-  color: var(--c-faint);
+  color: var(--c-dim);
   padding: var(--sp-2) var(--sp-1);
 }
 
@@ -899,7 +1048,7 @@ body {
 .lib-vrow {
   cursor: pointer;
   transition:
-    filter 0.12s ease,
+    box-shadow 0.12s ease,
     border-color 0.12s ease,
     background 0.12s ease,
     transform 0.05s ease;
@@ -910,7 +1059,7 @@ body {
   .lib-mini:hover,
   .lib-example:hover,
   .lib-row:hover {
-    filter: brightness(1.15);
+    box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.08);
     border-color: var(--c-dim);
   }
   .lib-vrow:hover {
@@ -922,7 +1071,7 @@ body {
 .lib-mini:active,
 .lib-example:active,
 .lib-row:active {
-  filter: brightness(0.87);
+  box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.2);
   transform: translateY(1px);
 }
 
@@ -985,14 +1134,17 @@ body {
   display: block;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: var(--fs-meta);
-  color: var(--c-faint);
-  margin-top: 4px;
+  color: var(--c-dim);
+  margin-top: var(--sp-1);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 /* link from the ? reference panel out to the full standalone docs page */
 .docs-full-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-left: auto;
   margin-right: var(--sp-3);
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -1001,16 +1153,22 @@ body {
   text-decoration: none;
   white-space: nowrap;
 }
-.docs-full-link:hover {
+.docs-full-link svg {
+  width: 12px;
+  height: 12px;
+}
+@media (hover: hover) {
+  .docs-full-link:hover {
+    color: var(--c-accent);
+  }
+}
+.docs-full-link:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
   color: var(--c-accent);
 }
 
 /* --- synth library panel (editor/synthlib.ts) --- */
-
-.synthlib-btn .synthlib-ico {
-  font-size: 16px;
-  line-height: 1;
-}
 .synthlib-btn .btn-label {
   margin-left: 6px;
 }
@@ -1056,7 +1214,7 @@ body {
 .synthlib-tags {
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: var(--fs-meta);
-  color: var(--c-faint);
+  color: var(--c-dim);
 }
 
 .synthlib-actions {
@@ -1074,7 +1232,6 @@ body {
   min-width: 40px;
   min-height: var(--h-ctrl);
   padding: 0 var(--sp-2);
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: var(--fs-ctrl);
   color: var(--c-accent);
   background: var(--c-green-deep);
@@ -1090,6 +1247,10 @@ body {
     background: var(--c-green);
     color: var(--c-text);
   }
+}
+.play-btn svg {
+  width: 15px;
+  height: 15px;
 }
 .play-btn.playing {
   background: var(--c-accent);
@@ -1227,7 +1388,11 @@ body.shaderviz-on .cm-content {
   display: none;
 }
 .run .btn-label {
-  display: inline;
+  /* reserve the width of the longest label ("update", 6 monospace ch) and
+     center within it, so run <-> update never resizes the button */
+  display: inline-block;
+  min-width: 6ch;
+  text-align: center;
 }
 @media (max-width: 560px) {
   .run .btn-label {
@@ -1237,4 +1402,187 @@ body.shaderviz-on .cm-content {
     padding: 0 var(--sp-2);
     gap: 0;
   }
+}
+
+/* export popover (editor/export.ts) */
+.export-pop {
+  position: fixed;
+  z-index: 45;
+  min-width: 244px;
+  max-width: min(340px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--c-raised);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.export-pop.hidden {
+  display: none;
+}
+.export-head {
+  font-size: var(--fs-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c-dim);
+}
+.export-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.export-label {
+  font-size: var(--fs-meta);
+  color: var(--c-dim);
+}
+.export-cycles {
+  width: 4rem;
+  padding: var(--sp-1) var(--sp-2);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: var(--fs-ctrl);
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+}
+.export-btn {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-height: var(--h-ctrl);
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-ctrl);
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.export-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.export-btn.armed {
+  color: var(--c-error);
+  border-color: var(--c-error-border);
+}
+.export-hint,
+.export-msg {
+  font-size: var(--fs-meta);
+  color: var(--c-dim);
+}
+.export-msg {
+  min-height: 1em;
+}
+@media (hover: hover) {
+  .export-btn:hover {
+    background: var(--c-surface);
+    border-color: var(--c-dim);
+  }
+}
+
+/* recording pill next to the export button in the header */
+.rec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-1);
+  color: var(--c-error);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+.rec-pill.hidden {
+  display: none;
+}
+.rec-pill svg {
+  width: 10px;
+  height: 10px;
+  animation: rec-blink 1s steps(2, start) infinite;
+}
+@keyframes rec-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rec-pill svg {
+    animation: none;
+  }
+}
+
+/* header overflow menu (ui/header-overflow.ts) */
+.more-btn {
+  display: none; /* only phones, where the controls would overflow the row */
+  min-width: var(--h-ctrl);
+}
+.more-btn svg {
+  width: 18px;
+  height: 18px;
+}
+.more-pop {
+  position: fixed;
+  z-index: 45;
+  min-width: 200px;
+  max-width: min(300px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  background: var(--c-raised);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.more-pop.hidden {
+  display: none;
+}
+.more-pop .btn {
+  width: 100%;
+  justify-content: flex-start;
+  gap: var(--sp-2);
+}
+.more-pop .btn-label {
+  display: inline; /* labels show in the menu (the bar hides them) */
+}
+@media (max-width: 560px) {
+  .more-btn {
+    display: inline-flex;
+  }
+}
+
+/* MIDI input popover (editor/midi.ts) — shares the export popover styles */
+.midi-pop {
+  position: fixed;
+  z-index: 45;
+  min-width: 240px;
+  max-width: min(320px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--c-raised);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.midi-pop.hidden {
+  display: none;
+}
+.midi-status {
+  font-size: var(--fs-meta);
+  color: var(--c-dim);
+}
+.midi-pick {
+  padding: var(--sp-1) var(--sp-2);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: var(--fs-ctrl);
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
 }

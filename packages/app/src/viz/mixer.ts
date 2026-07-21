@@ -12,6 +12,8 @@
  * synth must not recreate its slider mid-drag.
  * ------------------------------------------------------------------------- */
 
+import { tooltip } from '../ui/tooltip'
+
 export const THROTTLE_MS = 30
 
 /** Engine channel-strip defaults (see protocol.ts setChannel). */
@@ -136,7 +138,7 @@ export function createMixer(session: MixerSession, clock?: ThrottleClock): Mixer
     const nameEl = document.createElement('span')
     nameEl.className = 'mixer-name'
     nameEl.textContent = name
-    nameEl.title = name
+    tooltip(nameEl, name)
     const meter = document.createElement('div')
     meter.className = 'mixer-meter'
     const fill = document.createElement('div')

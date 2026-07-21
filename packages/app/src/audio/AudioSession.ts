@@ -15,6 +15,14 @@ import workletUrl from './worklet/processor?worker&url'
  * vite.config.ts) whose URL lands here. AudioWorklet always loads modules,
  * so a Worker-flavored module URL is exactly what addModule needs. */
 
+/** A sample loaded into the engine, as tracked on the main thread for the UI. */
+export interface SampleInfo {
+  name: string
+  /** length in frames at `sampleRate` */ frames: number
+  sampleRate: number
+  /** true for the demo samples shipped by default (vox/riser/pad) */ builtIn: boolean
+}
+
 export class AudioSession {
   /** Engine → host events (errors, meters), forwarded from the node's port.
    *  Single-listener by design: the Session layer (Task 3.2) owns this and
@@ -24,6 +32,16 @@ export class AudioSession {
   /** Visualizer tap (worklet → analyser → destination), or null when the
    *  tap could not be built — viz then simply has no data (see start()). */
   readonly analyser: AnalyserNode | null
+
+  /** Main-thread mirror of the samples loaded into the worklet, in load order
+   *  (built-ins first). The worklet is the source of truth for playback; this
+   *  is just so the UI can list what is loadable by name. */
+  private readonly _samples: SampleInfo[] = []
+  private readonly sampleListeners = new Set<() => void>()
+  /** main-thread copy of each sample's PCM, kept so the UI can preview it
+   *  (the worklet's copy is transferred and not readable from here). */
+  private readonly _pcm = new Map<string, { data: Float32Array; sampleRate: number }>()
+  private _preview: AudioBufferSourceNode | null = null
 
   private constructor(
     private readonly context: AudioContext,
@@ -116,19 +134,166 @@ export class AudioSession {
       for (let i = 0; i < n; i++) mono[i]! += ch[i]!
     }
     if (chans > 1) for (let i = 0; i < n; i++) mono[i]! /= chans
+    const keep = mono.slice() // main-thread copy for preview (mono is transferred below)
     this.node.port.postMessage(
       { kind: 'loadSample', name, data: mono, sampleRate: buf.sampleRate } satisfies EngineMessage,
       [mono.buffer],
     )
+    this._pcm.set(name, { data: keep, sampleRate: buf.sampleRate })
+    this.recordSample(name, n, buf.sampleRate, false)
     return n
   }
 
-  /** Load raw mono PCM directly (e.g. a procedurally generated buffer). */
-  loadSamplePcm(name: string, data: Float32Array, sampleRate: number): void {
+  /** Load raw mono PCM directly (e.g. a procedurally generated buffer). Pass
+   *  builtIn:true for the demo samples so the UI can label them. */
+  loadSamplePcm(name: string, data: Float32Array, sampleRate: number, builtIn = false): void {
+    const frames = data.length // read before postMessage transfers the buffer
+    const keep = data.slice() // main-thread copy for preview (data is transferred below)
     this.node.port.postMessage(
       { kind: 'loadSample', name, data, sampleRate } satisfies EngineMessage,
       [data.buffer],
     )
+    this._pcm.set(name, { data: keep, sampleRate })
+    this.recordSample(name, frames, sampleRate, builtIn)
+  }
+
+  /** Preview a loaded sample through the AudioContext (independent of the
+   *  engine graph). Interrupts any current preview. No-op for unknown names. */
+  previewSample(name: string): void {
+    const pcm = this._pcm.get(name)
+    if (!pcm) return
+    this.stopPreview()
+    const buf = this.context.createBuffer(1, pcm.data.length, pcm.sampleRate)
+    buf.getChannelData(0).set(pcm.data)
+    const src = this.context.createBufferSource()
+    src.buffer = buf
+    const gain = this.context.createGain()
+    gain.gain.value = 0.9
+    src.connect(gain).connect(this.context.destination)
+    src.onended = () => {
+      if (this._preview === src) this._preview = null
+    }
+    void this.context.resume()
+    src.start()
+    this._preview = src
+  }
+
+  // ---- live session recording (a PCM tap off the worklet output) ----
+  private recNode: ScriptProcessorNode | null = null
+  private recSink: GainNode | null = null
+  private recL: Float32Array[] = []
+  private recR: Float32Array[] = []
+  private recStartSec = 0
+
+  /** True while a live session recording is in progress. */
+  get isRecording(): boolean {
+    return this.recNode !== null
+  }
+
+  /** Seconds captured so far (0 when not recording). */
+  get recordingSeconds(): number {
+    return this.recNode ? this.context.currentTime - this.recStartSec : 0
+  }
+
+  /** Start capturing the live output to memory. A ScriptProcessor taps the
+   *  worklet (in parallel with the main output) and accumulates stereo PCM;
+   *  the sink is silent so this adds no audible path. */
+  startRecording(): void {
+    if (this.recNode) return
+    const ctx = this.context
+    const sp = ctx.createScriptProcessor(4096, 2, 2)
+    this.recL = []
+    this.recR = []
+    sp.onaudioprocess = (e: AudioProcessingEvent): void => {
+      const buf = e.inputBuffer
+      const l = buf.getChannelData(0)
+      const r = buf.numberOfChannels > 1 ? buf.getChannelData(1) : l
+      this.recL.push(new Float32Array(l))
+      this.recR.push(new Float32Array(r))
+    }
+    const sink = ctx.createGain()
+    sink.gain.value = 0
+    this.node.connect(sp)
+    sp.connect(sink)
+    sink.connect(ctx.destination)
+    this.recNode = sp
+    this.recSink = sink
+    this.recStartSec = ctx.currentTime
+    void ctx.resume()
+  }
+
+  /** Stop recording and return the captured stereo PCM (null if not recording). */
+  stopRecording(): { left: Float32Array; right: Float32Array; sampleRate: number } | null {
+    const sp = this.recNode
+    if (!sp) return null
+    sp.onaudioprocess = null
+    try {
+      this.node.disconnect(sp) // remove only the tap; the main path stays
+    } catch {
+      /* already gone */
+    }
+    sp.disconnect()
+    this.recSink?.disconnect()
+    this.recNode = null
+    this.recSink = null
+    const merge = (chunks: Float32Array[]): Float32Array => {
+      const n = chunks.reduce((a, c) => a + c.length, 0)
+      const out = new Float32Array(n)
+      let o = 0
+      for (const c of chunks) {
+        out.set(c, o)
+        o += c.length
+      }
+      return out
+    }
+    const res = { left: merge(this.recL), right: merge(this.recR), sampleRate: this.context.sampleRate }
+    this.recL = []
+    this.recR = []
+    return res
+  }
+
+  /** Stop the current preview, if any. */
+  stopPreview(): void {
+    if (!this._preview) return
+    try {
+      this._preview.stop()
+    } catch {
+      /* already stopped */
+    }
+    this._preview = null
+  }
+
+  /** The samples loaded so far (a copy), built-ins first, then user files. */
+  getSamples(): SampleInfo[] {
+    return [...this._samples]
+  }
+
+  /** Subscribe to sample-list changes (load/remove). Returns an unsubscribe. */
+  onSamplesChanged(fn: () => void): () => void {
+    this.sampleListeners.add(fn)
+    return () => this.sampleListeners.delete(fn)
+  }
+
+  /** Drop a loaded sample; synths referencing it fall back to silence. */
+  removeSample(name: string): void {
+    const i = this._samples.findIndex((s) => s.name === name)
+    if (i === -1) return
+    this.node.port.postMessage({ kind: 'clearSample', name } satisfies EngineMessage)
+    this._samples.splice(i, 1)
+    this._pcm.delete(name)
+    this.notifySamples()
+  }
+
+  private recordSample(name: string, frames: number, sampleRate: number, builtIn: boolean): void {
+    const info: SampleInfo = { name, frames, sampleRate, builtIn }
+    const i = this._samples.findIndex((s) => s.name === name)
+    if (i === -1) this._samples.push(info) // built-ins load first, so stay first
+    else this._samples[i] = info // re-loading a name overwrites in place
+    this.notifySamples()
+  }
+
+  private notifySamples(): void {
+    for (const fn of this.sampleListeners) fn()
   }
 
   get sampleRate(): number {

@@ -1,7 +1,9 @@
 import type { EditorHandle } from './editor'
 import { PreviewPlayer } from '../docs/player'
 import { highlightDsl } from '../docs/highlight'
-import { icon } from '../ui/icons'
+import { icon, iconEl } from '../ui/icons'
+import { overlayClosed, overlayOpened } from '../ui/overlays'
+import { tooltip } from '../ui/tooltip'
 
 /* ------------------------------------------------------------------------- *
  * Synth library: a shelf of ready-made instruments. Each entry auditions a
@@ -184,22 +186,31 @@ export function mountSynthLib(editor: EditorHandle): SynthLibHandle {
 
   const btn = el('button', 'btn synthlib-btn')
   btn.type = 'button'
-  btn.title = 'Synth library'
+  tooltip(btn, 'synth library')
+  btn.setAttribute('aria-expanded', 'false')
   btn.innerHTML = `${icon('waveform')}<span class="btn-label">synths</span>`
   const controls = editor.topbar.querySelector('.hdr-controls') ?? editor.topbar
   controls.insertBefore(btn, controls.firstChild)
 
   const backdrop = el('div', 'sheet-backdrop hidden')
   const sheet = el('aside', 'sheet')
+  sheet.setAttribute('role', 'dialog')
+  sheet.setAttribute('aria-modal', 'true')
+  sheet.setAttribute('aria-label', 'synth library')
   backdrop.append(sheet)
   document.body.append(backdrop)
 
   const close = (): void => {
     backdrop.classList.add('hidden')
     player.stop()
+    btn.setAttribute('aria-expanded', 'false')
+    overlayClosed(close)
+    btn.focus() // restore focus to the trigger
   }
   const open = (): void => {
+    overlayOpened(close) // close any other open sheet
     backdrop.classList.remove('hidden')
+    btn.setAttribute('aria-expanded', 'true')
     search.focus()
   }
 
@@ -217,7 +228,7 @@ export function mountSynthLib(editor: EditorHandle): SynthLibHandle {
   search.setAttribute('aria-label', 'search synths')
 
   const list = el('div', 'synthlib-list')
-  sheet.append(head, el('p', 'sheet-hint', 'Audition a synth, then insert its code at your cursor.'), search, list)
+  sheet.append(head, el('p', 'sheet-hint', 'audition a synth, then insert its code at your cursor'), search, list)
 
   const render = (query = ''): void => {
     list.replaceChildren()
@@ -242,8 +253,8 @@ export function mountSynthLib(editor: EditorHandle): SynthLibHandle {
       play.type = 'button'
       const setIdle = (): void => {
         play.classList.remove('playing')
-        play.textContent = '▶'
-        play.title = 'audition'
+        play.replaceChildren(iconEl('play'))
+        tooltip(play, 'audition')
       }
       setIdle()
       play.addEventListener('click', () => {
@@ -254,12 +265,12 @@ export function mountSynthLib(editor: EditorHandle): SynthLibHandle {
           }
           current?.reset()
           current = null
-          play.textContent = '…'
+          tooltip(play, 'loading…')
           const res = await player.play(`${sy.code}\n\n${sy.demoTail}`)
           if (res.ok) {
             play.classList.add('playing')
-            play.textContent = '⏹'
-            play.title = 'stop'
+            play.replaceChildren(iconEl('stop'))
+            tooltip(play, 'stop')
             current = { btn: play, reset: setIdle }
           } else {
             setIdle()

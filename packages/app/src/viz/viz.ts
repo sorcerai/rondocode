@@ -2,6 +2,7 @@ import type { AudioSession } from '../audio/AudioSession'
 import type { EditorHandle } from '../editor/editor'
 import { C_ACCENT, C_ACCENT_ALT } from '../ui/palette'
 import { icon } from '../ui/icons'
+import { tooltip } from '../ui/tooltip'
 import { createMixer } from './mixer'
 
 /* ------------------------------------------------------------------------- *
@@ -89,7 +90,7 @@ export function mountViz(root: HTMLElement, editor: EditorHandle, audio: AudioSe
   toggle.type = 'button'
   toggle.className = 'btn viz-toggle'
   toggle.innerHTML = `${icon('sliders')}<span class="btn-label">mixer</span>`
-  toggle.title = 'mixer + analyzer'
+  tooltip(toggle, 'mixer + scopes')
   const controls = root.querySelector('.hdr-controls')
   if (controls) controls.insertBefore(toggle, controls.firstChild)
   else root.querySelector('.topbar')?.append(toggle)

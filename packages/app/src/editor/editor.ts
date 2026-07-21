@@ -26,6 +26,9 @@ import type { SessionState } from '../session/Session'
 import type { Diagnostic } from '../session/evalCode'
 import type { AudioSession } from '../audio/AudioSession'
 import { makeVox, makeRiser, makePad } from '../audio/demo-samples'
+import { mountSamplesPopover } from './samples'
+import { mountExport } from './export'
+import { tooltip } from '../ui/tooltip'
 import { EXAMPLES } from '../examples'
 import { synthTheme } from './theme'
 import { EventFlasher, FLASH_MS, flashExtension } from './flash'
@@ -171,11 +174,11 @@ export function mountEditor(root: HTMLElement, audio: AudioSession): EditorHandl
   const topbar = el('header', 'topbar')
   const logo = el('span', 'logo', 'rondocode')
   // sample loader: bring audio files into the engine as sample(gate, 'name').
-  // The "＋" is always shown; " sample" is a collapsible label (hidden on
-  // mobile via CSS, so the button becomes icon-only to keep the header 1 row).
+  // Icon-only in the header (the label is hidden via CSS like the other
+  // secondary controls); the title names it, and it opens the samples popover.
   const sampleBtn = el('button', 'btn sample-btn')
   sampleBtn.type = 'button'
-  sampleBtn.title = 'load audio file(s) as samples — play with sample(gate, "name")'
+  tooltip(sampleBtn, 'load audio file(s) as samples, then play with sample(gate, "name")')
   const sampleLabel = el('span', 'btn-label', 'sample')
   const renderSample = (): void => {
     sampleBtn.replaceChildren(iconEl('plus'), sampleLabel)
@@ -186,29 +189,8 @@ export function mountEditor(root: HTMLElement, audio: AudioSession): EditorHandl
   fileInput.accept = 'audio/*'
   fileInput.multiple = true
   fileInput.hidden = true
-  const flashLabel = (text: string): void => {
-    // brief feedback replaces the whole button (visible on mobile too), then
-    // restores the icon + label.
-    sampleBtn.replaceChildren(document.createTextNode(text))
-    setTimeout(renderSample, 2200)
-  }
-  sampleBtn.addEventListener('click', () => fileInput.click())
-  fileInput.addEventListener('change', () => {
-    const files = fileInput.files ? Array.from(fileInput.files) : []
-    fileInput.value = '' // let the same file be re-picked later
-    void (async () => {
-      for (const f of files) {
-        const name = f.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_]/g, '_')
-        try {
-          const n = await audio.loadSample(name, await f.arrayBuffer())
-          flashLabel(`✓ ${name} (${(n / audio.sampleRate).toFixed(1)}s)`)
-        } catch (e) {
-          console.warn('[sample] load failed', name, e)
-          flashLabel(`✗ ${name}`)
-        }
-      }
-    })()
-  })
+  // The samples popover (mounted below, once the editor view exists) wires the
+  // button toggle, file loading, and the list of what's loaded.
 
   // Master output meter, styled as the header's living baseline hairline.
   const meter = el('div', 'meter')
@@ -221,24 +203,27 @@ export function mountEditor(root: HTMLElement, audio: AudioSession): EditorHandl
   runBtn.type = 'button'
   const runLabel = el('span', 'btn-label', 'run')
   runBtn.replaceChildren(iconEl('play'), runLabel)
-  const stopBtn = el('button', 'btn stop-btn')
+  tooltip(runBtn, 'run (Cmd/Ctrl+Enter)') // also sets aria-label (icon-only on mobile)
+  const stopBtn = el('button', 'btn stop-btn hidden') // only shown while playing
   stopBtn.type = 'button'
-  stopBtn.title = 'stop'
   stopBtn.replaceChildren(iconEl('stop'))
+  tooltip(stopBtn, 'stop (Cmd/Ctrl+.)')
   const dirtyDot = el('span', 'dirty-dot')
-  dirtyDot.title = 'edited since last run'
-  const cpsEl = el('span', 'cps-readout')
+  tooltip(dirtyDot, 'edited since last run')
   runBtn.append(dirtyDot) // the "edited since last run" hint lives on Run itself
-  controls.append(sampleBtn, cpsEl, stopBtn, runBtn)
+  const exportBtn = el('button', 'btn export-btn')
+  exportBtn.type = 'button'
+  exportBtn.replaceChildren(iconEl('download'), el('span', 'btn-label', 'export'))
+  controls.append(sampleBtn, exportBtn, stopBtn, runBtn)
 
   topbar.append(logo, fileInput, controls, meter)
 
   // Default demo samples so `sample()` works out of the box (users add their
   // own via the button above). Generated PCM fed through the real sample path.
   try {
-    audio.loadSamplePcm('vox', makeVox(audio.sampleRate), audio.sampleRate)
-    audio.loadSamplePcm('riser', makeRiser(audio.sampleRate), audio.sampleRate)
-    audio.loadSamplePcm('pad', makePad(audio.sampleRate), audio.sampleRate)
+    audio.loadSamplePcm('vox', makeVox(audio.sampleRate), audio.sampleRate, true)
+    audio.loadSamplePcm('riser', makeRiser(audio.sampleRate), audio.sampleRate, true)
+    audio.loadSamplePcm('pad', makePad(audio.sampleRate), audio.sampleRate, true)
   } catch (e) {
     console.warn('[sample] default sample load failed', e)
   }
@@ -548,11 +533,12 @@ export function mountEditor(root: HTMLElement, audio: AudioSession): EditorHandl
     audio,
     onDiagnostics: renderDiagnostics,
     onState: (s) => {
-      cpsEl.textContent = `${s.cps} cps`
+      stopBtn.classList.toggle('hidden', !s.playing) // no value when idle
       runBtn.classList.toggle('playing', s.playing)
       // While playing, Run hot-swaps the current code into the running program
       // rather than starting it — label it "update" (refresh icon) to say so.
       runLabel.textContent = s.playing ? 'update' : 'run'
+      tooltip(runBtn, s.playing ? 'update (Cmd/Ctrl+Enter)' : 'run (Cmd/Ctrl+Enter)')
       const wantIcon = s.playing ? 'refresh' : 'play'
       if (runBtn.dataset.icon !== wantIcon) {
         runBtn.querySelector('svg.ico')?.replaceWith(iconEl(wantIcon))
@@ -597,7 +583,6 @@ export function mountEditor(root: HTMLElement, audio: AudioSession): EditorHandl
       }
     },
   })
-  cpsEl.textContent = `${session.getState().cps} cps`
 
   // ---- controls ------------------------------------------------------
   runBtn.addEventListener('click', () => run())
@@ -614,6 +599,11 @@ export function mountEditor(root: HTMLElement, audio: AudioSession): EditorHandl
     // buffer replaced; press Run to play it from the top
   }
 
+  // samples popover: lists loaded samples (built-in + user), inserts
+  // sample(gate, 'name') at the cursor, and loads audio files.
+  const disposeSamples = mountSamplesPopover({ audio, view, anchor: sampleBtn, fileInput })
+  const disposeExport = mountExport({ view, audio, anchor: exportBtn })
+
   const dispose = (): void => {
     window.removeEventListener('pagehide', flushSave)
     document.removeEventListener('visibilitychange', onVisibility)
@@ -622,6 +612,8 @@ export function mountEditor(root: HTMLElement, audio: AudioSession): EditorHandl
     session.dispose()
     flasher.dispose()
     meters.dispose()
+    disposeSamples()
+    disposeExport()
     engineListeners.clear()
     stateListeners.clear()
     docListeners.clear()

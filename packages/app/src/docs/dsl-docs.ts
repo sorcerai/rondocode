@@ -376,6 +376,18 @@ const PATTERN_METHODS: DocEntry[] = [
     "Turn scale degrees (from n()) into actual notes in a scale like 'a minor' or 'f# mixolydian', degrees past the top wrap up an octave.",
     "n('0 0 3 5').scale('a minor')",
   ),
+  pm(
+    'echo',
+    'echo(count: number, time: number, feedback?: number)',
+    'Tempo-synced delay: layer count copies, each time cycles later and feedback (default 0.5) quieter — a musical echo, since time is in cycles.',
+    ".sound('pluck').echo(3, 0.125, 0.5)",
+  ),
+  pm(
+    'ping',
+    'ping(count: number, time: number, feedback?: number)',
+    'Like echo, but the taps alternate right/left for a ping-pong stereo delay.',
+    ".sound('pluck').ping(4, 0.1875, 0.6)",
+  ),
   pm('jux', 'jux(f: (p) => p)', 'Stereo split: the original hard left, f(copy) hard right.', '.jux(x => x.rev())'),
   pm('juxBy', 'juxBy(amount: number, f: (p) => p)', 'jux with adjustable width: 0 keeps both centered, 1 is a full split.', '.juxBy(0.5, x => x.rev())'),
 ]
@@ -416,7 +428,7 @@ const SYNTH_CTX: DocEntry[] = [
     'wavetable',
     "wavetable(freq: Sig | number, pos?: Sig | number, opts?: { table: 'basic' | 'harmonic' | 'pwm' })",
     'A morphing wavetable oscillator: pos (0..1) scans through a bank of single-cycle waves for an evolving, sweepable timbre, anti-aliased, so it stays clean up high. Tables: basic (sine→saw→square), harmonic (moving formant), pwm (widening pulses).',
-    "wavetable(note.freq, sine.range(0, 1).slow(4), { table: 'basic' })",
+    "wavetable(note.freq, lfo(0.25).range(0, 1), { table: 'basic' })",
   ),
   sc('noise', 'noise()', 'White noise, the raw material of hats, claps and breath.', "svf(noise(), 8000, { mode: 'hp' })"),
   sc(
@@ -429,7 +441,7 @@ const SYNTH_CTX: DocEntry[] = [
     'granular',
     'granular(gate, name, opts?: { pos, root, rate, size, density, spray, loop })',
     'Granular synthesis over a loaded sample: sprays short windowed grains from a scannable position, pitched independently. Grains spawn while gate is high. pos (0..1) is the read centre, freeze for a drone, sweep to scrub. Pitch via root (tracks the note) or rate. size (grain seconds, def 0.08), density (grains/s, def 25), spray (jitter s, def 0.01). Shape with an ADSR.',
-    "granular(gate, 'pad', { root: 60, pos: sine.range(0,1).slow(8), size: 0.1, density: 40 })",
+    "granular(gate, 'pad', { root: 60, pos: lfo(0.05).range(0, 1), size: 0.1, density: 40 })",
   ),
   sc(
     'svf',

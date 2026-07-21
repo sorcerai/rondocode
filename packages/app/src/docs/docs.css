@@ -423,3 +423,155 @@ a:hover {
     animation: none;
   }
 }
+
+/* keyboard shortcuts list */
+.kbd-list {
+  margin: var(--sp-4) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.kbd-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+.kbd-row kbd {
+  flex: none;
+  min-width: 12.5rem;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  padding: 2px var(--sp-2);
+}
+.kbd-row span {
+  color: var(--c-dim);
+  font-size: var(--fs-ctrl);
+}
+
+/* footer */
+.doc-footer {
+  margin-top: var(--sp-8);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--c-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  align-items: center;
+  color: var(--c-dim);
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+}
+.doc-footer a {
+  color: var(--c-dim);
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .doc-footer a:hover {
+    color: var(--c-accent);
+  }
+}
+.doc-footer a:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  color: var(--c-accent);
+}
+@media (max-width: 640px) {
+  .kbd-row {
+    flex-direction: column;
+    gap: 2px;
+  }
+  .kbd-row kbd {
+    min-width: 0;
+  }
+}
+
+/* global docs search (in the hero) */
+.doc-search {
+  width: 100%;
+  margin-top: var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  font-family: var(--mono);
+  font-size: var(--fs-ctrl);
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+}
+.doc-search:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+.doc-nohits {
+  color: var(--c-dim);
+  font-family: var(--mono);
+}
+
+/* hero mini-demo: a touch more prominent than a guide block */
+.doc-hero-demo {
+  margin-bottom: var(--sp-8);
+  border-color: var(--c-accent-alt);
+}
+
+/* nav items: a jump link plus a reveal-on-hover "open in editor" icon */
+.nav-item {
+  display: flex;
+  align-items: center;
+}
+.nav-item > a:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.nav-open {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--sp-2);
+  color: var(--c-faint);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.nav-open svg {
+  width: 13px;
+  height: 13px;
+}
+.nav-item:hover .nav-open,
+.nav-open:focus-visible {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .nav-open:hover {
+    color: var(--c-accent);
+  }
+}
+
+/* "copy for LLMs" button in the docs header */
+.doc-copy {
+  font-family: var(--mono);
+  font-size: var(--fs-ctrl);
+  padding: var(--sp-2) var(--sp-3);
+  margin-right: var(--sp-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: var(--c-dim);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .doc-copy:hover {
+    color: var(--c-text);
+    border-color: var(--c-dim);
+  }
+}
+.doc-copy:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .doc-copy {
+    display: none; /* the header is tight on phones; /llms.txt still works */
+  }
+}

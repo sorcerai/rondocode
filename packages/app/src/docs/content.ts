@@ -150,10 +150,155 @@ p('drums', stack(
     ],
   },
   {
+    id: 'rhythm',
+    title: 'Rhythm & variation',
+    blocks: [
+      p("A pattern is more than a fixed loop. `euclid(pulses, steps)` spreads hits as evenly as it can, `swing` bends the feel, and combinators like `every` and `off` transform the pattern on a schedule, so a loop keeps evolving without you writing every bar out."),
+      code(
+        'Euclidean hats with swing, and a fill every fourth bar.',
+        `const kick = synth(({ gate, adsr, sine }) =>
+  sine(adsr(gate, { a: 0.001, d: 0.09, s: 0, r: 0.05 }).pow(2).range(45, 160))
+    .mul(adsr(gate, { a: 0.001, d: 0.22, s: 0, r: 0.08 })).tanh())
+const hat = synth(({ gate, adsr, noise, svf }) =>
+  svf(noise(), 8000, { mode: 'hp' })
+    .mul(adsr(gate, { a: 0.001, d: 0.04, s: 0, r: 0.03 })).mul(0.5))
+
+p('kick', note('c1*4').sound('kick'))
+p('hats',
+  note('c5*8').sound('hat')
+    .euclid(5, 8)               // 5 hits across 8 steps
+    .swing(4)                   // triplet swing
+    .every(4, x => x.fast(2)))  // a fill every 4th bar
+setCps(0.5)`,
+      ),
+    ],
+  },
+  {
+    id: 'modulation',
+    title: 'Modulation',
+    blocks: [
+      p("Signals are shapes that run 0 to 1: `sine`, `saw`, `perlin` and friends. `.range(lo, hi)` maps one onto real units, and `.ctrl('name', signal)` drives a synth parameter with it per event. Inside a synth, `lfo()` moves things per voice."),
+      code(
+        'A slow sine sweeps the filter; an LFO adds per-voice tremolo.',
+        `const pad = synth(({ note, gate, param, adsr, saw, svf, lfo }) => {
+  const cutoff = param('cutoff', 800, { min: 200, max: 6000, curve: 'log' })
+  const trem = lfo(4).range(0.6, 1) // per-voice tremolo
+  const env = adsr(gate, { a: 0.2, d: 0.3, s: 0.85, r: 0.6 })
+  return svf(saw(note.freq), cutoff, { res: 0.5 }).mul(env).mul(trem)
+})
+
+p('pad',
+  chord('<Am7 Dm7 G Cmaj7>').sound('pad').dur(0.96)
+    // sweep the filter from the pattern side, over 4 cycles
+    .ctrl('cutoff', sine.range(300, 4500).slow(4)))
+setCps(0.4)`,
+      ),
+    ],
+  },
+  {
+    id: 'generative',
+    title: 'Generative',
+    blocks: [
+      p("Randomness here is time-locked: `rand`, `irand` and `perlin` hash the moment, so the same cycle always plays the same way. `.degradeBy(p)` drops events, `.sometimesBy(p, f)` transforms a random share. Change a seed for a new take; the loop stays reproducible."),
+      code(
+        'Eight random scale degrees a bar, thinned out and ghosted.',
+        `const pluck = synth(({ note, gate, adsr, saw, svf }) =>
+  svf(saw(note.freq), 2200, { res: 0.4 })
+    .mul(adsr(gate, { a: 0.002, d: 0.16, s: 0, r: 0.1 })).mul(0.7))
+
+p('lead',
+  n(irand(8).segment(8))         // 8 degrees per bar, same every loop
+    .scale('e minor')
+    .sound('pluck')
+    .degradeBy(0.3, 1)           // drop ~30% (seed 1)
+    .sometimesBy(0.25, x => x.gain(0.4), 2))
+setCps(0.5)`,
+      ),
+    ],
+  },
+  {
+    id: 'sidechain',
+    title: 'The pump',
+    blocks: [
+      p("`sidechain('kick', ...)` ducks every other channel on each kick and lets them swell back, the classic four-on-the-floor pump. `masterCompress(...)` glues the whole mix on the master bus. Together they make a loop breathe."),
+      code(
+        'A kick pumping a chord pad, glued with the master compressor.',
+        `const kick = synth(({ gate, adsr, sine }) =>
+  sine(adsr(gate, { a: 0.001, d: 0.08, s: 0, r: 0.05 }).pow(2).range(46, 190))
+    .mul(adsr(gate, { a: 0.001, d: 0.2, s: 0, r: 0.06 })).tanh())
+const pad = synth(({ note, gate, adsr, saw, svf }) =>
+  svf(saw(note.freq).add(saw(note.freq.mul(1.005))), 1900, { res: 0.2 })
+    .mul(adsr(gate, { a: 0.3, d: 0.4, s: 0.85, r: 0.6 })).mul(0.4))
+
+p('kick', note('c1*4').sound('kick'))
+p('pad', chord('<Fmaj7 G Am7 G>').sound('pad').dur(0.98))
+sidechain('kick', { depth: 0.8, release: 0.18 }) // the pump
+masterCompress({ threshold: -12, ratio: 3, makeup: 2 })
+setCps(0.5)`,
+      ),
+    ],
+  },
+  {
+    id: 'samples',
+    title: 'Samples & granular',
+    blocks: [
+      p("`sample(gate, 'name')` plays a loaded audio sample like an oscillator: `root` is the note it plays natural at, and it pitches from there. `vox`, `riser` and `pad` ship built in; load your own with the + button in the editor. `granular` sprays overlapping grains from a scannable position for evolving textures."),
+      code(
+        'A granular cloud over the built-in pad sample, with a vocal on top.',
+        `const cloud = synth(
+  ({ gate, adsr, granular, lfo }) => {
+    const env = adsr(gate, { a: 0.6, d: 0.5, s: 0.9, r: 1.2 })
+    // lfo() is an audio-rate signal; it scans the read position slowly
+    return granular(gate, 'pad', { root: 60, pos: lfo(0.05).range(0, 1), size: 0.12, density: 40 }).mul(env)
+  },
+  ({ input, reverb }) => input.mix(reverb(input, { roomSize: 0.9, damp: 0.4 }), 0.4),
+  { voices: 4 },
+)
+const voc = synth(({ gate, adsr, sample }) =>
+  sample(gate, 'vox', { root: 57 }).mul(adsr(gate, { a: 0.03, d: 0.3, s: 0.6, r: 0.4 })))
+
+p('cloud', chord('<Cmaj7 Am7>').sound('cloud').dur(0.98))
+p('voc', note('<c4 ~ e4 ~>').sound('voc').gain(0.5))
+setCps(0.3)`,
+      ),
+    ],
+  },
+  {
+    id: 'visuals',
+    title: 'Visuals',
+    blocks: [
+      p("`visual(...)` attaches a WGSL fragment shader that renders behind the code, driven by the audio: `time`, `level`, `bass`/`mid`/`treble`, `spectrum(x)`, `waveform(x)`, and a `hit_<synth>` onset envelope per synth. Press play to hear it, then open it in the editor and toggle the visuals button to see it."),
+      code(
+        'A spectrum ring with a kick-driven glow.',
+        `const kick = synth(({ gate, adsr, sine }) =>
+  sine(adsr(gate, { a: 0.001, d: 0.09, s: 0, r: 0.05 }).pow(2).range(45, 160))
+    .mul(adsr(gate, { a: 0.001, d: 0.22, s: 0, r: 0.08 })).tanh())
+const bass = synth(({ note, gate, adsr, saw, ladder }) =>
+  ladder(saw(note.freq), 700, { res: 0.4 })
+    .mul(adsr(gate, { a: 0.005, d: 0.2, s: 0.4, r: 0.2 })))
+
+p('kick', note('c1*4').sound('kick'))
+p('bass', note('<c2 c2 g1 eb2>').sound('bass'))
+
+visual(\`
+fn render(uv: vec2f) -> vec4f {
+  let p = (uv * 2.0 - 1.0) * vec2f(res.x / res.y, 1.0);
+  let r = length(p);
+  let ring = smoothstep(0.04, 0.0, abs(r - (0.4 + spectrum(uv.x) * 0.2)));
+  let glow = (0.1 + hit_kick * 0.2) / (r * r * 5.0 + 0.25);
+  let col = vec3f(0.3, 0.8, 0.7) * ring + vec3f(0.9, 0.5, 0.7) * glow;
+  return vec4f(min(col, vec3f(1.0)), 1.0);
+}
+\`)
+setCps(0.5)`,
+      ),
+    ],
+  },
+  {
     id: 'midi-import',
     title: 'Importing MIDI',
     blocks: [
-      p('A MIDI file can be turned into an editable rondocode example deterministically — the tempo, time signature, note timing and track split come straight from the file, nothing is guessed. Run the importer from the repo: `pnpm tsx packages/server/scripts/midi-to-rondocode.ts song.mid "my song"`. It picks a synth per track, derives setCps from the tempo, and prints an example you can paste here and edit.'),
+      p('A MIDI file can be turned into an editable rondocode example deterministically: the tempo, time signature, note timing and track split come straight from the file, nothing is guessed. Run the importer from the repo: `pnpm tsx packages/server/scripts/midi-to-rondocode.ts song.mid "my song"`. It picks a synth per track, derives setCps from the tempo, and prints an example you can paste here and edit.'),
       p('Imported patterns read like anything else you would write: a held note uses an `@` weight (on a 1/16 grid, `@16` is a whole bar), chords become stacked voice lines, and each track routes to its own synth. This is a small hand-written example in that same shape.'),
       code(
         'The shape of imported code: held notes with @, chords as stacked voices.',

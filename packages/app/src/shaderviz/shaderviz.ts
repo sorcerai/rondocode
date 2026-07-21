@@ -1,6 +1,7 @@
 import type { EditorHandle } from '../editor/editor'
 import type { AudioSession } from '../audio/AudioSession'
 import { icon } from '../ui/icons'
+import { tooltip } from '../ui/tooltip'
 
 /* ------------------------------------------------------------------------- *
  * Programmable WebGPU visualizer. User code registers a fragment shader with
@@ -117,7 +118,7 @@ export function mountShaderViz(root: HTMLElement, editor: EditorHandle, audio: A
   btn.type = 'button'
   btn.className = 'btn shaderviz-btn'
   btn.innerHTML = `${icon('sparkles')}<span class="btn-label">visuals</span>`
-  btn.title = 'programmable visuals'
+  tooltip(btn, 'programmable visuals')
   const controls = root.querySelector('.hdr-controls') ?? editor.topbar
   controls.insertBefore(btn, controls.firstChild)
 
@@ -377,6 +378,7 @@ export function mountShaderViz(root: HTMLElement, editor: EditorHandle, audio: A
   const setOn = (v: boolean): void => {
     on = v
     btn.classList.toggle('active', v)
+    btn.setAttribute('aria-pressed', String(v))
     canvas.classList.toggle('visible', v)
     document.body.classList.toggle('shaderviz-on', v)
     if (v) {

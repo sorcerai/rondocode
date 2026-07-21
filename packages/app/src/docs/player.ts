@@ -1,5 +1,6 @@
 import { AudioSession } from '../audio/AudioSession'
 import { Session } from '../session'
+import { makeVox, makeRiser, makePad } from '../audio/demo-samples'
 import type { SchedulerEvent } from '@rondocode/pattern'
 
 /* ------------------------------------------------------------------------- *
@@ -46,6 +47,14 @@ export class PreviewPlayer {
       this.booting = (async () => {
         const audio = await AudioSession.start()
         this.audio = audio
+        // load the built-in demo samples so sample()/granular() snippets are audible here too
+        try {
+          audio.loadSamplePcm('vox', makeVox(audio.sampleRate), audio.sampleRate, true)
+          audio.loadSamplePcm('riser', makeRiser(audio.sampleRate), audio.sampleRate, true)
+          audio.loadSamplePcm('pad', makePad(audio.sampleRate), audio.sampleRate, true)
+        } catch {
+          /* samples optional — snippets that don't use them still play */
+        }
         this.session = new Session({
           audio,
           onPatternEvents: (evs) => this.onPatternEvents?.(evs),

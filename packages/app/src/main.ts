@@ -6,6 +6,8 @@ import { mountLibrary } from './editor/library'
 import { mountDocs } from './editor/docspanel'
 import { mountSynthLib } from './editor/synthlib'
 import { mountShaderViz } from './shaderviz/shaderviz'
+import { mountMidi } from './editor/midi'
+import { mountHeaderOverflow } from './ui/header-overflow'
 import { BridgeClient } from './session/bridge-client'
 import { Session } from './session/Session'
 import { applyPalette } from './ui/palette'
@@ -179,6 +181,8 @@ AudioSession.start().then(
     mountDocs(editor)
     mountSynthLib(editor)
     mountShaderViz(app, editor, audio)
+    mountMidi(editor, audio)
+    mountHeaderOverflow(editor.topbar) // after every module has added its button
     startBridge(editor, contextSession)
   },
   (e: unknown) => {
