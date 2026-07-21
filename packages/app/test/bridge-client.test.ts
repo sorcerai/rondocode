@@ -183,6 +183,17 @@ describe('BridgeClient', () => {
     expect(ws.frames().filter((f) => f.notify === 'state').length).toBe(before + 3)
   })
 
+  it('calls the disconnect lifecycle once when an open socket closes', () => {
+    const onDisconnect = vi.fn()
+    const { client, ws } = rig({ onDisconnect })
+    ws.emit('open')
+    ws.emit('close')
+    expect(onDisconnect).toHaveBeenCalledTimes(1)
+    // The later cleanup stop sees an already-closed client and must not double-fire.
+    client.stop()
+    expect(onDisconnect).toHaveBeenCalledTimes(1)
+  })
+
   it('reconnects with doubling backoff capped at 30x, resetting on success', () => {
     vi.useFakeTimers()
     const { ws } = rig({}, { retryMs: 1000 })
