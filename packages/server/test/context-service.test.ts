@@ -68,6 +68,19 @@ describe('ContextService', () => {
     expect(channels.every((channel) => channel.gain === 0)).toBe(true)
   })
 
+  it('honors an explicit session blur instead of reviving it by recency', async () => {
+    const { service, calls } = rig()
+    await service.ingest({ sessionId: 's', rawPercent: 70, focused: true })
+    calls.length = 0
+
+    await service.ingest({ sessionId: 's', event: 'focus', focused: false })
+
+    expect(service.status().active).toBeUndefined()
+    const apply = calls.find((call) => call.method === 'applyContext')!
+    const channels = (apply.params as { channels: { gain?: number }[] }).channels
+    expect(channels.every((channel) => channel.gain === 0)).toBe(true)
+  })
+
   it('uses distinct compacting and release arrangements, then returns home', async () => {
     const { service, calls, timers, advance } = rig()
     await service.ingest({ sessionId: 's', rawPercent: 96, focused: true })
@@ -84,9 +97,10 @@ describe('ContextService', () => {
 
     advance(1200)
     timers[0]!.fn()
-    await Promise.resolve()
-    await Promise.resolve()
+    // Enqueue one more awaited sync behind the timer's fire-and-forget sync.
+    await service.setForeground({ focused: true, app: 'Terminal', title: 's' })
     expect(service.status().scoreKey).toBe('normal:0')
+    expect(service.status().active?.release).toBe(false)
   })
 
   it('keeps telemetry queued when the browser is not connected', async () => {
