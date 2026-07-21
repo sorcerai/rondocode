@@ -57,13 +57,14 @@ export class ContextService {
 
   async ingest(input: ContextTelemetry): Promise<ContextState | undefined> {
     const event = input.event ?? 'usage'
-    const state = this.engine.ingest(input)
+    let state = this.engine.ingest(input)
 
     // The engine's zero-config fallback selects the first unseen session. An
     // explicit blur must override that fallback even when this is the first
     // event we have ever seen for the session.
     if (input.focused === false && this.engine.activeSessionId === input.sessionId) {
       this.engine.focus(undefined)
+      state = this.engine.get(input.sessionId)
     }
 
     if (event === 'compact-start') {
