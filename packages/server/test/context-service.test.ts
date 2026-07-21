@@ -44,9 +44,11 @@ const rig = (connected = true) => {
 }
 
 describe('ContextService', () => {
-  it('loads the score once, then applies continuous updates without re-evaluating the zone', async () => {
+  it('replaces the score only when pressure crosses a zone boundary', async () => {
     const { service, calls } = rig()
     await service.ingest({ sessionId: 's', source: 'pi', rawPercent: 20, focused: true })
+    const initial = calls.find((call) => call.method === 'startContextScore')!
+    const initialSource = (initial.params as { source: string }).source
     expect(calls.map((call) => call.method)).toEqual(['startContextScore', 'applyContext'])
 
     calls.length = 0
@@ -55,7 +57,11 @@ describe('ContextService', () => {
 
     calls.length = 0
     await service.ingest({ sessionId: 's', source: 'pi', rawPercent: 72 })
+    const changed = calls.find((call) => call.method === 'startContextScore')!
+    const changedSource = (changed.params as { source: string }).source
     expect(calls.map((call) => call.method)).toEqual(['startContextScore', 'applyContext'])
+    expect(changedSource).not.toBe(initialSource)
+    expect(changedSource).toContain("p('ctx_ghost'")
   })
 
   it('mutes all score channels when the foreground watcher leaves a coding app', async () => {

@@ -2,8 +2,8 @@ import type { ContextZone } from './context-telemetry'
 
 export type ContextScoreMode = 'normal' | 'compacting' | 'release'
 
-/** 164 BPM when one cycle is one 4/4 bar: bpm / 60 / 4. */
-export const CONTEXT_SCORE_CPS = 164 / 240
+/** 174 BPM when one cycle is one 4/4 bar: bpm / 60 / 4. */
+export const CONTEXT_SCORE_CPS = 174 / 240
 
 export const CONTEXT_SCORE_SYNTHS = [
   'ctx_pad',
@@ -61,11 +61,14 @@ const ctx_piano = synth(
 )
 
 const ctx_bass = synth(
-  ({ note, gate, param, adsr, pulse, saw, onepole }) => {
+  ({ note, gate, param, adsr, saw, onepole }) => {
     const bright = param('bright', 700, { min: 120, max: 2600, curve: 'log' })
-    const env = adsr(gate, { a: 0.004, d: 0.18, s: 0.55, r: 0.12 })
-    const tone = pulse(note.freq, 0.42).mix(saw(note.freq.mul(0.5)), 0.28)
-    return onepole(tone, bright).mul(env).mul(0.56).tanh()
+    const env = adsr(gate, { a: 0.012, d: 0.28, s: 0.82, r: 0.32 })
+    const sub = saw(note.freq).mul(0.78)
+    const reese = saw(note.freq.mul(1.003))
+      .add(saw(note.freq.mul(0.997)))
+      .mul(0.18)
+    return onepole(sub.add(reese), bright).mul(env).mul(0.48).tanh()
   },
   { mono: true, glide: 0.025, voices: 1 },
 )
@@ -175,39 +178,46 @@ const ctx_release = synth(
 )
 `
 
-const COMMON_PATTERNS = `
-const ctxHarmony = chord('<Dm Bb C A>')
-const ctxRoots = note('<d2 bb1 c2 a1>')
-const ctxTheme = note('d5 a4 d5 f5 e5 d5 c#5 a4')
-const ctxAnswer = note('f5 e5 d5 a4 bb4 c5 d5 e5')
+const commonPatterns = (upper: boolean) => `
+const ctxHarmony = chord('${upper ? '<Dm9 Gm9 Bbmaj7 A7>' : '<Dm9 Bbmaj7 Fadd9 A7>'}')
+const ctxRoots = note('<d2 bb1 f2 a1>')
+const ctxTheme = note('d5 f5 a5 c6 a5 f5 e5 d5')
+const ctxAnswer = note('f5 a5 c6 a5 g5 f5 e5 c#5')
 
 p('ctx_pad', ctxHarmony.sound('ctx_pad').dur(0.98).gain(0.5))
 p('ctx_theme', cat(ctxTheme, ctxAnswer).sound('ctx_piano').dur(0.72).gain(0.68))
 `
 
-const DRUMS_HALF = `
-p('ctx_kick', note('c1 ~ ~ ~ c1 ~ ~ ~').sound('ctx_kick').gain(0.72))
+const FLOW = `
+p('ctx_bass', ctxRoots.sound('ctx_bass').dur(0.9).gain(0.42))
+p('ctx_flow_hat', note('~ c6 ~ ~ ~ c6 ~ ~').sound('ctx_hat').gain(0.28))
 `
 
-const DRUMS_FULL = `
-p('ctx_kick', note('c1*4').sound('ctx_kick').gain(0.78))
-p('ctx_snare', note('~ c3 ~ c3').sound('ctx_snare').gain(0.64))
+const DRUMS_TWO_STEP = `
+p('ctx_kick', note('c1 ~ ~ ~ ~ ~ ~ ~ ~ ~ c1 ~ ~ ~ ~ ~').sound('ctx_kick').gain(0.78))
+p('ctx_snare', note('~ ~ ~ ~ c3 ~ ~ ~ ~ ~ ~ ~ c3 ~ ~ ~').sound('ctx_snare').gain(0.64))
 `
 
 const BASS = `
-p('ctx_bass', ctxRoots
-  .struct(mini('t ~ t t ~ t t ~'))
-  .sound('ctx_bass')
-  .dur(0.42)
-  .gain(0.62))
+p('ctx_bass', ctxRoots.sound('ctx_bass').dur(0.82).gain(0.62))
 `
 
 const HATS = `
-p('ctx_hat', note('c6*8').sound('ctx_hat').gain(rand.range(0.42, 0.78)).degradeBy(0.08, 19))
+p('ctx_hat', note('~ c6 ~ c6 ~ c6 ~ c6 ~ c6 ~ c6 ~ c6 ~ c6')
+  .swing(8)
+  .sound('ctx_hat')
+  .gain(0.42))
+`
+
+const GHOSTS = `
+p('ctx_ghost', note('~ ~ c3 ~ ~ ~ ~ c3 ~ ~ c3 ~ ~ ~ ~ c3')
+  .sound('ctx_snare')
+  .dur(0.22)
+  .gain(0.18))
 `
 
 const HATS_FAST = `
-p('ctx_hat_fast', note('c7*16').sound('ctx_hat_fast').gain(rand.range(0.28, 0.7)).degradeBy(0.1, 29))
+p('ctx_hat_fast', note('c7*16').swing(8).sound('ctx_hat_fast').gain(0.44))
 `
 
 const ARP_SLOW = `
@@ -220,14 +230,14 @@ p('ctx_arp', ctxHarmony.arp('updowninc').fast(4).sound('ctx_arp').dur(0.22).gain
 
 const LEAD = `
 p('ctx_lead', cat(
-  note('d5 f5 a5 g5 f5 e5 d5 a4'),
-  note('bb4 d5 f5 e5 d5 c#5 d5 a5'),
+  note('d5 f5 a5 c6 a5 f5 e5 d5'),
+  note('bb4 d5 f5 a5 g5 f5 e5 c#5'),
 ).sound('ctx_lead').dur(0.86).gain(0.5))
 `
 
 const LEAD_URGENT = `
 p('ctx_lead', cat(
-  note('d5 f5 a5 d6 c6 bb5 a5 g5'),
+  note('d5 a5 c6 d6 c6 a5 g5 f5'),
   note('f5 a5 d6 c#6 d6 a5 f5 e5'),
 ).sound('ctx_lead').dur(0.78).gain(0.54))
 `
@@ -246,6 +256,13 @@ p('ctx_last', cat(
 ).fast(2).sound('ctx_last').dur(0.38).gain(0.48))
 `
 
+const CRITICAL_FILL = `
+p('ctx_fill', note('~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ c3 c3 c3')
+  .sound('ctx_snare')
+  .dur(0.16)
+  .gain(0.28))
+`
+
 const MIX = `
 sidechain('ctx_kick', {
   depth: 0.46,
@@ -257,12 +274,13 @@ setCps(${CONTEXT_SCORE_CPS})
 `
 
 const normalPatterns = (zone: ContextZone): string => {
-  const parts = [COMMON_PATTERNS, zone >= 2 ? DRUMS_FULL : DRUMS_HALF]
-  if (zone >= 1) parts.push(BASS, HATS)
-  if (zone >= 2) parts.push(ARP_SLOW, LEAD)
-  if (zone >= 3) parts.push(HATS_FAST, COUNTER)
+  const parts = [commonPatterns(zone >= 4)]
+  if (zone === 1) parts.push(FLOW)
+  if (zone >= 2) parts.push(DRUMS_TWO_STEP, BASS, HATS)
+  if (zone >= 2 && zone < 4) parts.push(ARP_SLOW, LEAD)
+  if (zone >= 3) parts.push(GHOSTS, HATS_FAST, COUNTER)
   if (zone >= 4) parts.push(ARP_FAST, LEAD_URGENT)
-  if (zone >= 5) parts.push(LAST)
+  if (zone >= 5) parts.push(LAST, CRITICAL_FILL)
   return parts.join('\n')
 }
 
