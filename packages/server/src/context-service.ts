@@ -38,6 +38,7 @@ export class ContextService {
   private foregroundApp: string | undefined
   private foregroundTitle: string | undefined
   private releaseUntil = 0
+  private releaseSessionId: string | undefined
   private releaseTimer: unknown
   private scoreKey: string | undefined
   private browserStarted = false
@@ -67,10 +68,14 @@ export class ContextService {
       state = this.engine.get(input.sessionId)
     }
 
-    if (event === 'compact-start') {
+    // Compaction theatre belongs to the session that is actually audible. A
+    // background session may still record its compacting flag, but it cannot
+    // suspend or resolve another session's score.
+    const activeEvent = this.engine.activeSessionId === input.sessionId
+    if (event === 'compact-start' && activeEvent) {
       this.clearRelease()
-    } else if (event === 'compact-end') {
-      this.armRelease()
+    } else if (event === 'compact-end' && activeEvent) {
+      this.armRelease(input.sessionId)
     }
     // Session-end deliberately does not guess a replacement. The score stays
     // silent until another harness activity or foreground-title match claims
@@ -112,12 +117,15 @@ export class ContextService {
     sessions: ContextState[]
     scoreKey?: string
     releaseUntil?: number
+    releaseSessionId?: string
     lastError?: string
   } {
     const now = this.now()
-    const releaseActive = this.releaseUntil > now
+    const releaseActive = this.releaseUntil > now && this.releaseSessionId !== undefined
     const normalizeRelease = (state: ContextState): ContextState =>
-      !releaseActive && state.release ? { ...state, release: false } : state
+      !(releaseActive && state.sessionId === this.releaseSessionId) && state.release
+        ? { ...state, release: false }
+        : state
     const activeRaw = this.engine.active
     const active = activeRaw === undefined ? undefined : normalizeRelease(activeRaw)
     const foreground: { allowed: boolean; app?: string; title?: string } = {
@@ -134,16 +142,19 @@ export class ContextService {
       sessions: this.engine.states().map(normalizeRelease),
       ...(this.scoreKey !== undefined ? { scoreKey: this.scoreKey } : {}),
       ...(releaseActive ? { releaseUntil: this.releaseUntil } : {}),
+      ...(releaseActive ? { releaseSessionId: this.releaseSessionId } : {}),
       ...(this.lastError !== undefined ? { lastError: this.lastError } : {}),
     }
   }
 
-  private armRelease(): void {
+  private armRelease(sessionId: string): void {
     this.clearRelease()
+    this.releaseSessionId = sessionId
     this.releaseUntil = this.now() + this.releaseMs
     this.releaseTimer = this.setTimeoutImpl(() => {
       this.releaseTimer = undefined
       this.releaseUntil = 0
+      this.releaseSessionId = undefined
       void this.enqueueSync().catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error)
         this.lastError = message
@@ -156,6 +167,7 @@ export class ContextService {
     if (this.releaseTimer !== undefined) this.clearTimeoutImpl(this.releaseTimer)
     this.releaseTimer = undefined
     this.releaseUntil = 0
+    this.releaseSessionId = undefined
   }
 
   private enqueueSync(): Promise<void> {
@@ -166,7 +178,9 @@ export class ContextService {
 
   private modeFor(state: ContextState): ContextScoreMode {
     if (state.compacting) return 'compacting'
-    if (this.releaseUntil > this.now()) return 'release'
+    if (this.releaseSessionId === state.sessionId && this.releaseUntil > this.now()) {
+      return 'release'
+    }
     return 'normal'
   }
 
@@ -208,10 +222,10 @@ export class ContextService {
       this.scoreKey = key
     }
 
-    // `release` is an edge flag on telemetry state, while releaseUntil owns the
-    // audible duration. Once the timer expires, neutralize a stale flag even if
-    // the harness has not emitted its next usage update yet.
-    const mixState = mode === 'normal' && state.release ? { ...state, release: false } : state
+    // `release` is an edge flag on telemetry state, while releaseSessionId /
+    // releaseUntil own the audible duration. Neutralize stale flags from other
+    // sessions or an expired transition.
+    const mixState = mode === 'release' || !state.release ? state : { ...state, release: false }
     await this.callBridge('applyContext', contextMix(mixState, this.foregroundAllowed))
     this.lastError = undefined
   }
