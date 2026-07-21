@@ -225,8 +225,8 @@ export function directZone(pressure: number): ContextZone {
 
 /**
  * Enter a higher zone at its published threshold. Leave it only after falling
- * `margin` below that threshold. This prevents a 69.9/70.1 reading from
- * rearranging the orchestra every second like a deeply indecisive conductor.
+ * `margin` below that threshold. This prevents a reading hovering just above
+ * or below a threshold from rearranging the orchestra every second.
  */
 export function hystereticZone(
   previous: ContextZone,

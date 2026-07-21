@@ -28,11 +28,23 @@ describe('context telemetry parsing and pressure', () => {
     expect(() => parseContextTelemetry({ sessionId: 'x', event: 'panic' })).toThrow(ContextInputError)
   })
 
-  it('maps pressure to six musical zones with downward hysteresis', () => {
+  it('maps pressure to six musical zones at each published threshold', () => {
     expect(directZone(0.05)).toBe(0)
-    expect(directZone(0.3)).toBe(3)
+    expect(directZone(0.06)).toBe(1)
+    expect(directZone(0.11)).toBe(1)
+    expect(directZone(0.12)).toBe(2)
+    expect(directZone(0.24)).toBe(2)
+    expect(directZone(0.25)).toBe(3)
+    expect(directZone(0.39)).toBe(3)
+    expect(directZone(0.4)).toBe(4)
+    expect(directZone(0.54)).toBe(4)
+    expect(directZone(0.55)).toBe(5)
     expect(directZone(0.95)).toBe(5)
-    expect(hystereticZone(3, 0.37, 0.04)).toBe(3)
+  })
+
+  it('retains a zone inside its downward hysteresis dead-band', () => {
+    expect(directZone(0.22)).toBe(2)
+    expect(hystereticZone(3, 0.22, 0.04)).toBe(3)
     expect(hystereticZone(3, 0.2, 0.04)).toBe(2)
   })
 
