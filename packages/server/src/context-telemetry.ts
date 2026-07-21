@@ -234,7 +234,7 @@ export function hystereticZone(
   margin = 0.04,
 ): ContextZone {
   const p = clamp01(pressure)
-  let zone = previous
+  let zone: number = previous
   while (zone < CONTEXT_ZONE_THRESHOLDS.length && p >= CONTEXT_ZONE_THRESHOLDS[zone]!) {
     zone++
   }
