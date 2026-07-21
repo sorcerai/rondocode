@@ -34,6 +34,14 @@ export class AudioSession {
     node.port.onmessage = (e: MessageEvent) => this.onEvent?.(e.data as EngineEvent)
   }
 
+  private static createNode(context: AudioContext): AudioWorkletNode {
+    return new AudioWorkletNode(context, 'rondocode-engine', {
+      numberOfInputs: 0,
+      numberOfOutputs: 1,
+      outputChannelCount: [2], // ask for stereo; processor tolerates mono
+    })
+  }
+
   /** Create the context + worklet graph. Safe to call at page load: the
    *  AudioContext starts SUSPENDED (creating it and loading the worklet module
    *  need no user gesture) and produces no sound until resume(), which the
@@ -43,11 +51,7 @@ export class AudioSession {
     const context = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' })
     try {
       await context.audioWorklet.addModule(workletUrl)
-      const node = new AudioWorkletNode(context, 'rondocode-engine', {
-        numberOfInputs: 0,
-        numberOfOutputs: 1,
-        outputChannelCount: [2], // ask for stereo; processor tolerates mono
-      })
+      const node = AudioSession.createNode(context)
       // Visualizer tap: worklet → analyser → destination. FAIL-OPEN: if the
       // analyser can't be created or wired, fall back to a direct
       // worklet → destination connection — audio must NEVER break because a
@@ -76,6 +80,22 @@ export class AudioSession {
       context.close().catch(() => {})
       throw e
     }
+  }
+
+  /**
+   * Create an independent engine on the SAME AudioContext. The peer gets its
+   * own synth registry, scheduler messages, and event stream, while sharing the
+   * browser unlock/resume state and the existing analyser/destination graph.
+   *
+   * Context sonification uses this so its procedural soundtrack never replaces
+   * the editor's live program. One browser gesture resumes both worklets, which
+   * is considerably less absurd than asking for two ceremonial clicks.
+   */
+  createPeer(): AudioSession {
+    const node = AudioSession.createNode(this.context)
+    if (this.analyser !== null) node.connect(this.analyser)
+    else node.connect(this.context.destination)
+    return new AudioSession(this.context, node, this.analyser)
   }
 
   send(msg: EngineMessage): void {
