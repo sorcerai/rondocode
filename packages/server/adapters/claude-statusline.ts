@@ -75,9 +75,16 @@ const main = async (): Promise<void> => {
     event: 'usage',
     focused: true,
   }
-  if (rawPercent !== undefined) payload.rawPercent = rawPercent
-  if (contextWindow !== undefined) payload.contextWindow = contextWindow
-  if (usedTokens !== undefined) payload.usedTokens = usedTokens
+  // Claude's precomputed percentage already accounts for its own context
+  // semantics. Do not send a token estimate alongside it, because the shared
+  // normalizer intentionally prefers token counts for Pi/OMP reserve handling.
+  if (rawPercent !== undefined) {
+    payload.rawPercent = rawPercent
+    if (contextWindow !== undefined) payload.contextWindow = contextWindow
+  } else {
+    if (contextWindow !== undefined) payload.contextWindow = contextWindow
+    if (usedTokens !== undefined) payload.usedTokens = usedTokens
+  }
   if (model !== undefined) payload.model = model
   if (cwd !== undefined) payload.cwd = cwd
 
@@ -89,9 +96,17 @@ const main = async (): Promise<void> => {
     // Deliberately silent: Claude should not flash adapter failures at the user.
   }
 
-  const percentText = rawPercent === undefined ? '?' : `${Math.round(rawPercent)}%`
+  const calculatedPercent =
+    rawPercent ??
+    (usedTokens !== undefined && contextWindow !== undefined && contextWindow > 0
+      ? (usedTokens / contextWindow) * 100
+      : undefined)
+  const percentText =
+    calculatedPercent === undefined ? '?' : `${Math.round(calculatedPercent)}%`
   const project = cwd === undefined ? undefined : basename(cwd)
-  const details = [percentText, model, project].filter((v): v is string => v !== undefined)
+  const details = [percentText, model, project].filter(
+    (value): value is string => value !== undefined,
+  )
   process.stdout.write(`♪ ${details.join(' · ')}`)
 }
 
