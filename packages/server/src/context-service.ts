@@ -59,6 +59,13 @@ export class ContextService {
     const event = input.event ?? 'usage'
     const state = this.engine.ingest(input)
 
+    // The engine's zero-config fallback selects the first unseen session. An
+    // explicit blur must override that fallback even when this is the first
+    // event we have ever seen for the session.
+    if (input.focused === false && this.engine.activeSessionId === input.sessionId) {
+      this.engine.focus(undefined)
+    }
+
     if (event === 'compact-start') {
       this.clearRelease()
     } else if (event === 'compact-end') {
@@ -136,7 +143,11 @@ export class ContextService {
     this.releaseTimer = this.setTimeoutImpl(() => {
       this.releaseTimer = undefined
       this.releaseUntil = 0
-      void this.enqueueSync()
+      void this.enqueueSync().catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        this.lastError = message
+        console.warn(`[context] release sync failed: ${message}`)
+      })
     }, this.releaseMs)
   }
 
