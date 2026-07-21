@@ -28,12 +28,18 @@ describe('context telemetry parsing and pressure', () => {
     expect(() => parseContextTelemetry({ sessionId: 'x', event: 'panic' })).toThrow(ContextInputError)
   })
 
-  it('uses narrower high-pressure zones with downward hysteresis', () => {
-    expect(directZone(0.1)).toBe(0)
-    expect(directZone(0.7)).toBe(3)
+  it('maps pressure to six musical zones with downward hysteresis', () => {
+    expect(directZone(0.05)).toBe(0)
+    expect(directZone(0.3)).toBe(3)
     expect(directZone(0.95)).toBe(5)
-    expect(hystereticZone(3, 0.68, 0.04)).toBe(3)
-    expect(hystereticZone(3, 0.65, 0.04)).toBe(2)
+    expect(hystereticZone(3, 0.37, 0.04)).toBe(3)
+    expect(hystereticZone(3, 0.2, 0.04)).toBe(2)
+  })
+
+  it('maps typical working pressure to a groove zone, not ambient-only', () => {
+    const engine = new ContextPressureEngine({ smoothing: 1 })
+    const working = engine.ingest({ sessionId: 'x', rawPercent: 20 })!
+    expect(working.zone).toBeGreaterThanOrEqual(2)
   })
 })
 
@@ -55,7 +61,7 @@ describe('ContextPressureEngine', () => {
     expect(compacting.compacting).toBe(true)
     const released = engine.ingest({ sessionId: 'x', event: 'compact-end', rawPercent: 18 })!
     expect(released.pressure).toBeCloseTo(0.18)
-    expect(released.zone).toBe(0)
+    expect(released.zone).toBe(2)
     expect(released.compacting).toBe(false)
     expect(released.release).toBe(true)
   })

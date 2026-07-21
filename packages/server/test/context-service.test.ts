@@ -52,7 +52,7 @@ describe('ContextService', () => {
     expect(calls.map((call) => call.method)).toEqual(['startContextScore', 'applyContext'])
 
     calls.length = 0
-    await service.ingest({ sessionId: 's', source: 'pi', rawPercent: 28 })
+    await service.ingest({ sessionId: 's', source: 'pi', rawPercent: 22 })
     expect(calls.map((call) => call.method)).toEqual(['applyContext'])
 
     calls.length = 0
@@ -118,7 +118,7 @@ describe('ContextService', () => {
 
   it('does not let a background compaction hijack the active score transition', async () => {
     const { service, calls, timers } = rig()
-    await service.ingest({ sessionId: 'active', rawPercent: 64, focused: true })
+    await service.ingest({ sessionId: 'active', rawPercent: 20, focused: true })
     await service.ingest({ sessionId: 'background', rawPercent: 92 })
     calls.length = 0
 
@@ -140,7 +140,7 @@ describe('ContextService', () => {
     expect(service.status().scoreKey).toBe('compacting')
 
     calls.length = 0
-    await service.ingest({ sessionId: 's', event: 'compact-end', rawPercent: 18 })
+    await service.ingest({ sessionId: 's', event: 'compact-end', rawPercent: 3 })
     expect(service.status().scoreKey).toBe('release')
     expect(service.status().releaseSessionId).toBe('s')
     expect(timers).toHaveLength(1)

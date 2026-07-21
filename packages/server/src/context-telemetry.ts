@@ -7,7 +7,7 @@
  * parameter values for the procedural context score.
  * ------------------------------------------------------------------------- */
 
-export const CONTEXT_ZONE_THRESHOLDS = [0.35, 0.55, 0.7, 0.83, 0.93] as const
+export const CONTEXT_ZONE_THRESHOLDS = [0.06, 0.12, 0.25, 0.4, 0.55] as const
 export const CONTEXT_ZONE_NAMES = ['open', 'flow', 'build', 'tense', 'urgent', 'critical'] as const
 
 export type ContextZone = 0 | 1 | 2 | 3 | 4 | 5
