@@ -50,7 +50,9 @@ export class ContextService {
     this.now = opts.now ?? (() => Date.now())
     this.releaseMs = Math.max(200, opts.releaseMs ?? 2400)
     this.setTimeoutImpl = opts.setTimeoutImpl ?? ((fn, ms) => setTimeout(fn, ms))
-    this.clearTimeoutImpl = opts.clearTimeoutImpl ?? ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>))
+    this.clearTimeoutImpl =
+      opts.clearTimeoutImpl ??
+      ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>))
   }
 
   async ingest(input: ContextTelemetry): Promise<ContextState | undefined> {
@@ -104,7 +106,12 @@ export class ContextService {
     releaseUntil?: number
     lastError?: string
   } {
-    const active = this.engine.active
+    const now = this.now()
+    const releaseActive = this.releaseUntil > now
+    const normalizeRelease = (state: ContextState): ContextState =>
+      !releaseActive && state.release ? { ...state, release: false } : state
+    const activeRaw = this.engine.active
+    const active = activeRaw === undefined ? undefined : normalizeRelease(activeRaw)
     const foreground: { allowed: boolean; app?: string; title?: string } = {
       allowed: this.foregroundAllowed,
     }
@@ -116,9 +123,9 @@ export class ContextService {
       browserStarted: this.browserStarted,
       foreground,
       ...(active !== undefined ? { active } : {}),
-      sessions: this.engine.states(),
+      sessions: this.engine.states().map(normalizeRelease),
       ...(this.scoreKey !== undefined ? { scoreKey: this.scoreKey } : {}),
-      ...(this.releaseUntil > this.now() ? { releaseUntil: this.releaseUntil } : {}),
+      ...(releaseActive ? { releaseUntil: this.releaseUntil } : {}),
       ...(this.lastError !== undefined ? { lastError: this.lastError } : {}),
     }
   }
@@ -155,7 +162,10 @@ export class ContextService {
     const bridge = this.getBridge()
     if (!bridge.connected) return
 
-    const state = this.engine.active ?? this.engine.mostRecent()
+    // Do not fall back to the most-recent session here. An explicit
+    // `focused:false` must make the score silent, rather than immediately
+    // resurrecting the same session through recency.
+    const state = this.engine.active
     if (state === undefined) {
       if (this.browserStarted) {
         await this.callBridge('applyContext', contextMix(undefined, false))
@@ -176,15 +186,21 @@ export class ContextService {
         'ok' in result &&
         (result as { ok?: unknown }).ok !== true
       ) {
-        const diagnostics = 'diagnostics' in result ? (result as { diagnostics?: unknown }).diagnostics : undefined
+        const diagnostics =
+          'diagnostics' in result
+            ? (result as { diagnostics?: unknown }).diagnostics
+            : undefined
         throw new Error(`context score failed to evaluate: ${JSON.stringify(diagnostics)}`)
       }
       this.browserStarted = true
       this.scoreKey = key
     }
 
-    const audible = this.foregroundAllowed
-    await this.callBridge('applyContext', contextMix(state, audible))
+    // `release` is an edge flag on telemetry state, while releaseUntil owns the
+    // audible duration. Once the timer expires, neutralize a stale flag even if
+    // the harness has not emitted its next usage update yet.
+    const mixState = mode === 'normal' && state.release ? { ...state, release: false } : state
+    await this.callBridge('applyContext', contextMix(mixState, this.foregroundAllowed))
     this.lastError = undefined
   }
 
