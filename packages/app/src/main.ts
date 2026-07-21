@@ -7,6 +7,7 @@ import { mountDocs } from './editor/docspanel'
 import { mountSynthLib } from './editor/synthlib'
 import { mountShaderViz } from './shaderviz/shaderviz'
 import { BridgeClient } from './session/bridge-client'
+import { Session } from './session/Session'
 import { applyPalette } from './ui/palette'
 import { mountViz } from './viz/viz'
 
@@ -16,8 +17,14 @@ import { mountViz } from './viz/viz'
  * ownership of the Session's own callbacks; state notifications ride the
  * EditorHandle.onState subscription seam. The client is silent and retries
  * with backoff when no bridge is running, so the app works standalone. */
-const startBridge = (editor: EditorHandle): void => {
+const startBridge = (editor: EditorHandle, contextSession: Session | undefined): void => {
   const session = editor.session
+  const context = (): Session => {
+    if (contextSession === undefined) {
+      throw new Error('context audio worklet is unavailable in this browser session')
+    }
+    return contextSession
+  }
   const str = (v: unknown, name: string): string => {
     if (typeof v !== 'string') throw new TypeError(`${name} must be a string`)
     return v
@@ -61,14 +68,14 @@ const startBridge = (editor: EditorHandle): void => {
         session.transport(cmd, q.cps === undefined ? undefined : { cps: num(q.cps, 'cps') })
       },
 
-      // Context mode loads a trusted, fixed program from the local bridge
-      // without replacing the user's editor buffer. The browser may still need
-      // one click to unlock audio, because autoplay policy enjoys bureaucracy.
+      // Context mode loads a trusted, fixed program into an independent audio
+      // worklet. It can run beside the editor without replacing the user's code.
       startContextScore: (p) => {
         const q = obj(p)
-        const result = session.evalCode(str(q.source, 'source'))
-        if (result.ok && !session.getState().playing) {
-          session.transport(
+        const soundtrack = context()
+        const result = soundtrack.evalCode(str(q.source, 'source'))
+        if (result.ok && !soundtrack.getState().playing) {
+          soundtrack.transport(
             'play',
             q.cps === undefined ? undefined : { cps: num(q.cps, 'cps') },
           )
@@ -76,7 +83,7 @@ const startBridge = (editor: EditorHandle): void => {
         return {
           ok: result.ok,
           diagnostics: result.diagnostics,
-          state: session.getState(),
+          state: soundtrack.getState(),
         }
       },
 
@@ -84,9 +91,10 @@ const startBridge = (editor: EditorHandle): void => {
       // crossfade inside the AudioWorklet; zone-only code re-evals happen separately.
       applyContext: (p) => {
         const q = obj(p)
+        const soundtrack = context()
         for (const raw of arr(q.params, 'params')) {
           const update = obj(raw)
-          session.setParam(
+          soundtrack.setParam(
             str(update.addr, 'params[].addr'),
             num(update.value, 'params[].value'),
             update.rampMs === undefined
@@ -96,7 +104,7 @@ const startBridge = (editor: EditorHandle): void => {
         }
         for (const raw of arr(q.channels ?? [], 'channels')) {
           const update = obj(raw)
-          session.setChannel(str(update.synth, 'channels[].synth'), {
+          soundtrack.setChannel(str(update.synth, 'channels[].synth'), {
             gain:
               update.gain === undefined
                 ? undefined
@@ -107,7 +115,7 @@ const startBridge = (editor: EditorHandle): void => {
                 : num(update.pan, 'channels[].pan'),
           })
         }
-        return session.getState()
+        return soundtrack.getState()
       },
       getState: () => session.getState(),
     },
@@ -143,13 +151,29 @@ AudioSession.start().then(
     document.addEventListener('pointerdown', unlockAudio, { capture: true })
     document.addEventListener('keydown', unlockAudio, { capture: true })
 
+    let contextSession: Session | undefined
+    try {
+      // Independent registry/transport, shared AudioContext. Context pressure
+      // can run behind the editor without replacing whatever the human is
+      // currently live-coding. Civilization advances by one worklet.
+      contextSession = new Session({
+        audio: audio.createPeer(),
+        onDiagnostics: (diagnostics) => {
+          const errors = diagnostics.filter((diagnostic) => diagnostic.severity === 'error')
+          if (errors.length > 0) console.warn('[context audio]', errors)
+        },
+      })
+    } catch (error) {
+      console.warn('[context audio] failed to create peer worklet', error)
+    }
+
     const editor = mountEditor(app, audio)
     mountViz(app, editor, audio)
     void mountLibrary(editor).catch((e) => console.warn('[library] failed to mount', e))
     mountDocs(editor)
     mountSynthLib(editor)
     mountShaderViz(app, editor, audio)
-    startBridge(editor)
+    startBridge(editor, contextSession)
   },
   (e: unknown) => {
     const banner = document.createElement('div')
