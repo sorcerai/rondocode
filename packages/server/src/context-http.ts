@@ -2,14 +2,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { ContextUnavailableError, type ContextService } from './context-service'
 import { ContextInputError, parseContextTelemetry } from './context-telemetry'
 
-const CORS = {
-  'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'GET, POST, OPTIONS',
-  'access-control-allow-headers': 'content-type',
+const JSON_HEADERS = {
+  'content-type': 'application/json',
+  'cache-control': 'no-store',
 }
 
 const sendJson = (res: ServerResponse, status: number, body: unknown): void => {
-  res.writeHead(status, { 'content-type': 'application/json', ...CORS })
+  res.writeHead(status, JSON_HEADERS)
   res.end(JSON.stringify(body))
 }
 
@@ -32,12 +31,22 @@ const readBody = (req: IncomingMessage): Promise<string> =>
     req.on('error', reject)
   })
 
+const acceptsJson = (req: IncomingMessage): boolean => {
+  const raw = req.headers['content-type']
+  const value = Array.isArray(raw) ? raw[0] : raw
+  return typeof value === 'string' && /^application\/json(?:\s*;|$)/i.test(value)
+}
+
 /**
  * Local telemetry HTTP surface.
  *
  * POST /context        normalised harness event
  * POST /context/focus  foreground-app/window gate
  * GET  /context/status browser/session state
+ *
+ * There is intentionally no permissive CORS header. Status includes local
+ * project/session metadata, and POST requires application/json so an arbitrary
+ * webpage cannot use a simple no-CORS request to steer the soundtrack.
  */
 export function makeContextHandler(
   service: ContextService,
@@ -49,13 +58,21 @@ export function makeContextHandler(
     }
 
     if (req.method === 'OPTIONS') {
-      res.writeHead(204, CORS)
+      res.writeHead(204, { allow: 'GET, POST, OPTIONS' })
       res.end()
       return true
     }
 
     if (path === '/context/status' && req.method === 'GET') {
       sendJson(res, 200, service.status())
+      return true
+    }
+
+    if (req.method === 'POST' && !acceptsJson(req)) {
+      sendJson(res, 415, {
+        ok: false,
+        error: 'content-type must be application/json',
+      })
       return true
     }
 
@@ -131,7 +148,7 @@ export function makeContextHandler(
       return true
     }
 
-    res.writeHead(405, CORS)
+    res.writeHead(405, { allow: 'GET, POST, OPTIONS' })
     res.end()
     return true
   }
