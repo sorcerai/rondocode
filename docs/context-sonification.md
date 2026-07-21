@@ -6,9 +6,13 @@ generated danmaku-style soundtrack.
 There are no WAV stems. The browser runs one original RondoCode program made of
 oscillators, filters, envelopes, effects, and mini-notation patterns. Telemetry
 ramps live synth parameters continuously; only a pressure-zone or compaction
-change hot-swaps pattern registrations. The synth graphs and transport stay live. Context mode owns the live audio
-session while active; it preserves the editor buffer but does not mix over a
-separately running editor program. Apparently even software needs boundaries.
+change hot-swaps pattern registrations. The synth graphs and transport stay
+live.
+
+The soundtrack has its own AudioWorklet engine and `Session`, sharing the
+editor's `AudioContext` but not its synth registry, patterns, or transport. It
+can play beside whatever is being live-coded without either program bulldozing
+the other. Software finally learns to share a room.
 
 ## What you hear
 
@@ -87,7 +91,9 @@ All harnesses post the same JSON shape to `POST http://127.0.0.1:6070/context`:
 
 Only `sessionId` is mandatory. Usage may be supplied as `rawPercent`, or as
 `usedTokens` plus a context/effective limit. Token counts win when both forms
-are present.
+are present, which lets Pi/OMP account for a reserved compaction margin. The
+Claude adapter sends Claude's precomputed percentage without a competing token
+estimate.
 
 Events:
 
@@ -99,9 +105,9 @@ focus
 session-end
 ```
 
-`focused: true` selects that session. `focused: false` mutes it if it is active.
-The server tracks every reported session but drives audio from one session at a
-time.
+`focused: true` selects that session. `focused: false` clears it from the active
+audio slot. The server tracks every reported session but drives one context
+score at a time.
 
 ## Claude Code
 
@@ -169,8 +175,8 @@ cp packages/server/adapters/pi-omp-extension.ts \
   ~/.pi/agent/extensions/rondocode-context.ts
 ```
 
-Restart Pi or reload extensions. The adapter reports usage on session start,
-user input, and agent completion, plus the before/after compaction events.
+Restart Pi or run `/reload`. The adapter reports usage on session start, user
+input, and agent completion, plus the before/after compaction events.
 
 Pi's default reserve assumption is 16,384 tokens. Override it when your setup
 uses another value:
