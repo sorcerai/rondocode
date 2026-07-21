@@ -71,10 +71,10 @@ export class ContextService {
       this.clearRelease()
     } else if (event === 'compact-end') {
       this.armRelease()
-    } else if (event === 'session-end' && this.engine.active === undefined) {
-      const fallback = this.engine.mostRecent()
-      if (fallback !== undefined) this.engine.focus(fallback.sessionId)
     }
+    // Session-end deliberately does not guess a replacement. The score stays
+    // silent until another harness activity or foreground-title match claims
+    // focus, which is safer than sonifying a stale background session.
 
     await this.enqueueSync()
     return state
