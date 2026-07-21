@@ -95,6 +95,21 @@ describe('ContextService', () => {
     expect(channels.every((channel) => channel.gain === 0)).toBe(true)
   })
 
+  it('mutes when the active session ends instead of guessing a background replacement', async () => {
+    const { service, calls } = rig()
+    await service.ingest({ sessionId: 'active', rawPercent: 78, focused: true })
+    await service.ingest({ sessionId: 'background', rawPercent: 42 })
+    calls.length = 0
+
+    await service.ingest({ sessionId: 'active', event: 'session-end' })
+
+    expect(service.status().active).toBeUndefined()
+    expect(service.status().sessions.map((state) => state.sessionId)).toEqual(['background'])
+    const apply = calls.find((call) => call.method === 'applyContext')!
+    const channels = (apply.params as { channels: { gain?: number }[] }).channels
+    expect(channels.every((channel) => channel.gain === 0)).toBe(true)
+  })
+
   it('uses distinct compacting and release arrangements, then returns home', async () => {
     const { service, calls, timers, advance } = rig()
     await service.ingest({ sessionId: 's', rawPercent: 96, focused: true })
