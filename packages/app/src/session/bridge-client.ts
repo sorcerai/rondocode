@@ -60,6 +60,9 @@ export interface BridgeAdapter {
   getState?: () => unknown
   /** Real state subscription (EditorHandle.onState); returns unsubscribe. */
   subscribeState?: (fn: () => void) => () => void
+  /** Called once when an OPEN bridge connection closes, including deliberate
+   *  supersession or stop(). Background features should fail silent here. */
+  onDisconnect?: () => void
 }
 
 export interface BridgeClientOpts {
@@ -114,6 +117,7 @@ export class BridgeClient {
 
   /** TERMINAL: close the socket and cease all retries/heartbeats. */
   stop(): void {
+    const wasOpen = this.open
     this.stopped = true
     if (this.retryTimer !== undefined) clearTimeout(this.retryTimer)
     this.stopHeartbeat()
@@ -122,6 +126,7 @@ export class BridgeClient {
     this.ws?.close()
     this.ws = undefined
     this.open = false
+    if (wasOpen) this.notifyDisconnect()
   }
 
   // ---- internals ------------------------------------------------------
@@ -152,9 +157,11 @@ export class BridgeClient {
     // and listening to both would double-schedule retries.
     ws.addEventListener('close', (ev) => {
       if (this.ws !== ws) return
+      const wasOpen = this.open
       this.ws = undefined
       this.open = false
       this.stopHeartbeat()
+      if (wasOpen) this.notifyDisconnect()
       if (ev.code === SUPERSEDED_CODE) {
         // Another tab took over the single bridge session. Go dormant: a
         // reconnect here would just steal it back and thrash. The user can
@@ -176,6 +183,17 @@ export class BridgeClient {
   private stopHeartbeat(): void {
     if (this.heartbeatTimer !== undefined) clearInterval(this.heartbeatTimer)
     this.heartbeatTimer = undefined
+  }
+
+  private notifyDisconnect(): void {
+    try {
+      this.adapter.onDisconnect?.()
+    } catch (error) {
+      console.warn(
+        '[bridge-client] disconnect handler failed:',
+        error instanceof Error ? error.message : error,
+      )
+    }
   }
 
   private async onFrame(text: string): Promise<void> {
