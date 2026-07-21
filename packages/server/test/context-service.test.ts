@@ -110,6 +110,21 @@ describe('ContextService', () => {
     expect(channels.every((channel) => channel.gain === 0)).toBe(true)
   })
 
+  it('does not let a background compaction hijack the active score transition', async () => {
+    const { service, calls, timers } = rig()
+    await service.ingest({ sessionId: 'active', rawPercent: 64, focused: true })
+    await service.ingest({ sessionId: 'background', rawPercent: 92 })
+    calls.length = 0
+
+    await service.ingest({ sessionId: 'background', event: 'compact-end', rawPercent: 18 })
+
+    expect(service.status().active?.sessionId).toBe('active')
+    expect(service.status().scoreKey).toBe('normal:2')
+    expect(service.status().releaseSessionId).toBeUndefined()
+    expect(timers).toHaveLength(0)
+    expect(calls.map((call) => call.method)).toEqual(['applyContext'])
+  })
+
   it('uses distinct compacting and release arrangements, then returns home', async () => {
     const { service, calls, timers, advance } = rig()
     await service.ingest({ sessionId: 's', rawPercent: 96, focused: true })
@@ -121,6 +136,7 @@ describe('ContextService', () => {
     calls.length = 0
     await service.ingest({ sessionId: 's', event: 'compact-end', rawPercent: 18 })
     expect(service.status().scoreKey).toBe('release')
+    expect(service.status().releaseSessionId).toBe('s')
     expect(timers).toHaveLength(1)
     expect(timers[0]!.ms).toBe(1200)
 
@@ -130,6 +146,7 @@ describe('ContextService', () => {
     await service.setForeground({ focused: true, app: 'Terminal', title: 's' })
     expect(service.status().scoreKey).toBe('normal:0')
     expect(service.status().active?.release).toBe(false)
+    expect(service.status().releaseSessionId).toBeUndefined()
   })
 
   it('keeps telemetry queued when the browser is not connected', async () => {
