@@ -19,7 +19,7 @@ the other. Software finally learns to share a room.
 | Effective pressure | Score state |
 | ---: | --- |
 | 0–34% | Main piano motif, pad, restrained half-time pulse |
-| 35–54% | Bass, snare, and first hats |
+| 35–54% | Bass and first hats |
 | 55–69% | Full kick, first arpeggio, and brass-like lead |
 | 70–82% | Faster hats and countermelody |
 | 83–92% | Sixteenth-note arpeggio and brighter lead |
@@ -177,9 +177,9 @@ soundtrack.
 Copy the extension into Pi's global extension directory:
 
 ```sh
-mkdir -p ~/.pi/agent/extensions
+mkdir -p ~/.pi/agent/extensions/rondocode-context
 cp packages/server/adapters/pi-omp-extension.ts \
-  ~/.pi/agent/extensions/rondocode-context.ts
+  ~/.pi/agent/extensions/rondocode-context/index.ts
 ```
 
 Restart Pi or run `/reload`. The adapter reports usage on session start, user
@@ -198,16 +198,34 @@ OMP exposes the same extension lifecycle needed here. Copy the same adapter to
 its agent extension directory:
 
 ```sh
-mkdir -p ~/.omp/agent/extensions
+mkdir -p ~/.omp/agent/extensions/rondocode-context
 cp packages/server/adapters/pi-omp-extension.ts \
-  ~/.omp/agent/extensions/rondocode-context.ts
+  ~/.omp/agent/extensions/rondocode-context/index.ts
 
 # Usually unnecessary; only set this when a custom launcher defeats auto-detection.
 export RONDOCODE_SOURCE=omp
 ```
 
 If your OMP installation points at a custom agent/config directory, place the
-file in that directory's `extensions/` folder instead.
+whole `rondocode-context/` directory in that directory's `extensions/` folder.
+
+## /music
+
+The shared OMP/Pi extension registers a `/music` slash command that mutes or
+resumes the context soundtrack without restarting anything:
+
+```text
+/music            toggle on/off
+/music on         enable
+/music off        disable
+/music toggle     flip current state
+/music status     show whether it is currently on
+```
+
+`/music off` mutes exactly the way a backgrounded window does — the score keeps
+its place and resumes instantly on `/music on`. The command talks to the local
+bridge (`POST /context/music`), so it works from any OMP terminal regardless of
+which one is foreground. If no bridge is running it says so.
 
 ## Foreground-window gate
 
@@ -232,6 +250,15 @@ The watcher also sends the front-window title; RondoCode uses a matching project
 folder or session ID to select among registered sessions. If the bridge process
 disconnects, the browser stops the context transport immediately and restarts it
 from retained telemetry only after a successful reconnect.
+
+Selection is best-effort, not deterministic. A session is identified only when
+the frontmost title contains that session's id or its project-folder basename
+(for example `rondocode` for `~/repos/rondocode`). Many agent terminals show a
+task or prompt title instead (e.g. `π: <task>`), which contains neither; the
+service then falls back to the active or most-recently-reported session. The
+global coding-app mute gate is reliable (audio stops when you leave a coding
+app), but among several same-repo terminals the foreground window is not always
+the session that drives the score.
 
 ## Other harnesses
 

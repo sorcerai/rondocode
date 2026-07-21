@@ -53,7 +53,12 @@ export function makeContextHandler(
 ): (req: IncomingMessage, res: ServerResponse) => boolean {
   return (req, res) => {
     const path = (req.url ?? '').split('?')[0]
-    if (path !== '/context' && path !== '/context/status' && path !== '/context/focus') {
+    if (
+      path !== '/context' &&
+      path !== '/context/status' &&
+      path !== '/context/focus' &&
+      path !== '/context/music'
+    ) {
       return false
     }
 
@@ -105,6 +110,46 @@ export function makeContextHandler(
           })
         })
         .then(() => sendJson(res, 200, { ok: true, status: service.status() }))
+        .catch((error: unknown) => {
+          if (error instanceof ContextInputError) {
+            sendJson(res, 400, { ok: false, error: error.message })
+            return
+          }
+          if (error instanceof ContextUnavailableError) {
+            sendJson(res, 503, { ok: false, error: error.message, status: service.status() })
+            return
+          }
+          const message = error instanceof Error ? error.message : String(error)
+          sendJson(res, 500, { ok: false, error: message })
+        })
+      return true
+    }
+
+    if (path === '/context/music' && req.method === 'POST') {
+      void readBody(req)
+        .then((body) => {
+          let parsed: unknown
+          try {
+            parsed = JSON.parse(body)
+          } catch {
+            throw new ContextInputError('music payload must be valid JSON')
+          }
+          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+            throw new ContextInputError('music payload must be a JSON object')
+          }
+          const value = parsed as Record<string, unknown>
+          if (value.enabled === undefined || value.enabled === null) {
+            return service.toggleMusicEnabled()
+          }
+          if (typeof value.enabled !== 'boolean') {
+            throw new ContextInputError('enabled must be a boolean')
+          }
+          const enabled = value.enabled
+          return service.setMusicEnabled(enabled).then(() => enabled)
+        })
+        .then((enabled) =>
+          sendJson(res, 200, { ok: true, enabled, status: service.status() }),
+        )
         .catch((error: unknown) => {
           if (error instanceof ContextInputError) {
             sendJson(res, 400, { ok: false, error: error.message })

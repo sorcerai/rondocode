@@ -35,6 +35,7 @@ export class ContextService {
   private readonly clearTimeoutImpl: (handle: unknown) => void
 
   private foregroundAllowed = true
+  private musicEnabled = true
   private foregroundApp: string | undefined
   private foregroundTitle: string | undefined
   private releaseUntil = 0
@@ -102,6 +103,17 @@ export class ContextService {
     await this.enqueueSync()
   }
 
+  async setMusicEnabled(enabled: boolean): Promise<void> {
+    this.musicEnabled = enabled
+    await this.enqueueSync()
+  }
+
+  async toggleMusicEnabled(): Promise<boolean> {
+    this.musicEnabled = !this.musicEnabled
+    await this.enqueueSync()
+    return this.musicEnabled
+  }
+
   /** A fresh/reloaded browser lost its score even though telemetry state survived. */
   async browserHello(): Promise<void> {
     this.browserStarted = false
@@ -113,6 +125,7 @@ export class ContextService {
     browserConnected: boolean
     browserStarted: boolean
     foreground: { allowed: boolean; app?: string; title?: string }
+    music: { enabled: boolean }
     active?: ContextState
     sessions: ContextState[]
     scoreKey?: string
@@ -138,6 +151,7 @@ export class ContextService {
       browserConnected: this.getBridge().connected,
       browserStarted: this.browserStarted,
       foreground,
+      music: { enabled: this.musicEnabled },
       ...(active !== undefined ? { active } : {}),
       sessions: this.engine.states().map(normalizeRelease),
       ...(this.scoreKey !== undefined ? { scoreKey: this.scoreKey } : {}),
@@ -226,7 +240,7 @@ export class ContextService {
     // releaseUntil own the audible duration. Neutralize stale flags from other
     // sessions or an expired transition.
     const mixState = mode === 'release' || !state.release ? state : { ...state, release: false }
-    await this.callBridge('applyContext', contextMix(mixState, this.foregroundAllowed))
+    await this.callBridge('applyContext', contextMix(mixState, this.musicEnabled && this.foregroundAllowed))
     this.lastError = undefined
   }
 

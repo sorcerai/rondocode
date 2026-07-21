@@ -14,13 +14,21 @@ type ExtensionContext = {
   sessionManager: { getSessionFile(): string | undefined }
 }
 type Handler = (event: Event, ctx: ExtensionContext) => unknown | Promise<unknown>
+type NotifyLevel = 'info' | 'warn' | 'error'
+type CommandContext = { ui: { notify(message: string, level?: NotifyLevel): void } }
+type CommandHandler = (rawArgs: string, ctx: CommandContext) => unknown | Promise<unknown>
+type Command = { description: string; handler: CommandHandler }
 type ExtensionAPI = {
   on(name: string, handler: Handler): void
+  registerCommand?(name: string, command: Command): void
   logger?: { debug(message: string, details?: unknown): void }
 }
 
 const endpoint =
   process.env['RONDOCODE_CONTEXT_URL'] ?? 'http://127.0.0.1:6070/context'
+const base = endpoint.replace(/\/context\/?$/, '')
+const musicUrl = `${base}/context/music`
+const statusUrl = `${base}/context/status`
 const reserveTokens = Number(process.env['RONDOCODE_RESERVE_TOKENS'] ?? 16_384)
 const source =
   process.env['RONDOCODE_SOURCE'] ??
@@ -44,6 +52,42 @@ const post = async (body: Record<string, unknown>): Promise<void> => {
     })
   } catch {
     // The coding harness must remain boringly functional when RondoCode is off.
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const postJson = async (
+  url: string,
+  body: Record<string, unknown>,
+): Promise<Record<string, unknown> | undefined> => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 1200)
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+    if (!res.ok) return undefined
+    return (await res.json()) as Record<string, unknown>
+  } catch {
+    return undefined
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const getStatus = async (): Promise<Record<string, unknown> | undefined> => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 1200)
+  try {
+    const res = await fetch(statusUrl, { signal: controller.signal })
+    if (!res.ok) return undefined
+    return (await res.json()) as Record<string, unknown>
+  } catch {
+    return undefined
   } finally {
     clearTimeout(timer)
   }
@@ -96,6 +140,41 @@ export default function rondocodeContext(pi: ExtensionAPI): void {
       event: 'session-end',
       cwd: ctx.cwd,
     })
+  })
+
+  pi.registerCommand?.('music', {
+    description:
+      'Turn RondoCode context sonification on/off. Usage: /music [on|off|toggle|status]',
+    handler: async (rawArgs, ctx) => {
+      const arg = (typeof rawArgs === 'string' ? rawArgs : '').trim().toLowerCase()
+      if (arg === 'status' || arg === '?') {
+        const st = await getStatus()
+        if (st === undefined) {
+          ctx.ui.notify('RondoCode bridge not running — start it with `pnpm bridge`', 'warn')
+          return
+        }
+        const music: unknown = st['music']
+        const on =
+          typeof music === 'object' &&
+          music !== null &&
+          'enabled' in music &&
+          music.enabled === true
+        ctx.ui.notify(`Context music is ${on ? 'ON' : 'OFF'}`, 'info')
+        return
+      }
+      if (arg !== '' && arg !== 'on' && arg !== 'off' && arg !== 'toggle') {
+        ctx.ui.notify('Usage: /music [on|off|toggle|status]', 'warn')
+        return
+      }
+      const body = arg === 'on' ? { enabled: true } : arg === 'off' ? { enabled: false } : {}
+      const res = await postJson(musicUrl, body)
+      if (res === undefined) {
+        ctx.ui.notify('RondoCode bridge not running — start it with `pnpm bridge`', 'warn')
+        return
+      }
+      const on = res['enabled'] === true
+      ctx.ui.notify(`Context music ${on ? 'on' : 'off'}`, 'info')
+    },
   })
 
   pi.logger?.debug('RondoCode context sonification extension loaded', {

@@ -157,4 +157,45 @@ describe('ContextService', () => {
     expect(calls).toEqual([])
     expect(service.status().sessions).toHaveLength(1)
   })
+
+  it('mutes every channel when music is disabled, even with foreground allowed', async () => {
+    const { service, calls } = rig()
+    await service.ingest({ sessionId: 's', rawPercent: 80, focused: true })
+    expect(service.status().music.enabled).toBe(true)
+
+    calls.length = 0
+    await service.setMusicEnabled(false)
+
+    const apply = calls.find((call) => call.method === 'applyContext')!
+    const channels = (apply.params as { channels: { gain?: number }[] }).channels
+    expect(channels.every((channel) => channel.gain === 0)).toBe(true)
+    expect(service.status().music.enabled).toBe(false)
+  })
+
+  it('restores audible channels when music is re-enabled with foreground allowed', async () => {
+    const { service, calls } = rig()
+    await service.ingest({ sessionId: 's', rawPercent: 80, focused: true })
+    await service.setMusicEnabled(false)
+    calls.length = 0
+
+    await service.setMusicEnabled(true)
+
+    const apply = calls.find((call) => call.method === 'applyContext')!
+    const channels = (apply.params as { channels: { gain?: number }[] }).channels
+    expect(channels.some((channel) => (channel.gain ?? 0) > 0)).toBe(true)
+    expect(service.status().music.enabled).toBe(true)
+  })
+
+  it('toggleMusicEnabled flips the flag and returns the new value', async () => {
+    const { service } = rig()
+    expect(service.status().music.enabled).toBe(true)
+
+    const afterFirst = await service.toggleMusicEnabled()
+    expect(afterFirst).toBe(false)
+    expect(service.status().music.enabled).toBe(false)
+
+    const afterSecond = await service.toggleMusicEnabled()
+    expect(afterSecond).toBe(true)
+    expect(service.status().music.enabled).toBe(true)
+  })
 })

@@ -92,24 +92,85 @@ converter as a library function, ready to back an in-app "import MIDI" action.
 
 ## Context sonification
 
-The local bridge can turn Claude Code, Pi, OMP, or any normalized context
-percentage into a continuously generated danmaku-style score. Pressure reveals
-dense drums, arpeggios, counterpoint, and harmonic tension; compaction suspends
-and resolves the arrangement. No prerecorded stems or samples are used.
+RondoCode turns an agent harness's context-window pressure into a continuously
+generated danmaku-style soundtrack — a touhou-esque escalation that gets
+denser, faster, and more contrapuntal as the agent's context fills, then
+suspends and resolves when it compacts. No prerecorded stems or samples are
+used: the browser runs one original RondoCode program of oscillators, filters,
+envelopes, and mini-notation patterns. Telemetry ramps live synth parameters
+continuously; only a pressure-zone or compaction change hot-swaps patterns.
 
-The soundtrack runs in an independent AudioWorklet/Session beside the editor,
-sharing only the browser AudioContext. Live-coding and context audio therefore
-coexist without replacing each other's synths, patterns, or transport.
+The score runs in its own AudioWorklet `Session` beside the editor, sharing
+only the browser `AudioContext`, so live-coding and context audio coexist
+without either program bulldozing the other's synths, patterns, or transport.
+
+### How pressure becomes music
+
+The bridge normalizes each harness's context percentage into a smoothed 0–1
+*pressure* value and maps it to one of six stable zones. Each zone layers in
+more of the arrangement — bass and hats, then arpeggio and lead, then
+countermelody, then the final "Last Spell" voice. Urgency comes from density,
+counterpoint, brightness, and harmonic tension, not a volume climb.
+
+| Zone | Context % | What enters the arrangement |
+| --- | --- | --- |
+| `open` | 0–34% | Main piano motif, pad, restrained half-time pulse |
+| `flow` | 35–54% | Bass and first hats |
+| `build` | 55–69% | Full kick, first arpeggio, and brass-like lead |
+| `tense` | 70–82% | Faster hats and countermelody |
+| `urgent` | 83–92% | Sixteenth-note arpeggio and brighter lead |
+| `critical` | 93–100% | Critical "Last Spell" voice |
+| `compact-start` | — | Drums fall away into a dominant suspension |
+| `compact-end` | — | Resolving bell figure, then the low-pressure theme returns |
+
+When the agent compacts, the drums fall away into a suspended dominant chord —
+the spell card hanging in the air — and on compaction end a resolving bell
+figure plays before the low-pressure theme returns: the clear. Hysteresis at
+each zone boundary stops a 69.9 / 70.1 reading from rearranging the orchestra
+every second.
+
+### Run it
 
 ```sh
+pnpm install
+
+# terminal 1: browser app
 pnpm dev
+
+# terminal 2: WebSocket bridge + /context HTTP endpoint + focus watcher
 pnpm bridge
-pnpm context -- --source demo --session demo-1 --percent 72 --focused
+
+# send a fake session to hear the escalation
+pnpm context -- --source demo --session demo-1 --percent 18 --focused
+pnpm context -- --source demo --session demo-1 --percent 72
+pnpm context -- --source demo --session demo-1 --percent 96
+pnpm context -- --source demo --session demo-1 --event compact-start
+pnpm context -- --source demo --session demo-1 --event compact-end --percent 22
 ```
 
-Claude hooks/status-line setup, the Pi/OMP extension, foreground-window watcher,
-protocol, and pressure zones are documented in
-[docs/context-sonification.md](docs/context-sonification.md).
+If this repo's `.mcp.json` already launched the RondoCode MCP server, skip
+`pnpm bridge`: the MCP stdio process hosts the same bridge and `/context`
+endpoint. Open `http://localhost:6060`; the first click or keypress unlocks
+browser audio.
+
+### Agentic harness setup
+
+OMP, Pi, and Claude Code all speak the same normalized protocol — a JSON body
+to `POST http://127.0.0.1:6070/context` with a `sessionId` and either a
+percentage or token counts. Any harness that can emit a percentage can drive
+it through the generic `pnpm context` CLI too.
+
+- **OMP / Pi** — copy the shared extension into the harness's `extensions/`
+  directory and restart. It reports usage on session start, each user input,
+  and agent completion, plus the before/after compaction events. The same
+  extension adds a `/music` slash command (`on` / `off` / `toggle` / `status`)
+  to mute or resume the soundtrack.
+- **Claude Code** — a status-line command forwards
+  `context_window.used_percentage`, and `PreCompact` / `PostCompact` /
+  `SessionEnd` hooks fire the suspension → release arc.
+
+Full setup JSON, environment variables, the foreground-window watcher, and the
+wire protocol live in [docs/context-sonification.md](docs/context-sonification.md).
 
 ## Inspiration
 
